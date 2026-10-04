@@ -1,27 +1,11 @@
 {
-  "buildCommand": "npx expo export --platform web --output-dir web-build",
-  "outputDirectory": "web-build",
+  "buildCommand": "echo Vercel Ready",
+  "outputDirectory": "public",
   "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
-    },
-    {
-      "source": "/_expo/(.*)",
-      "destination": "/_expo/$1"
-    },
-    {
-      "source": "/assets/(.*)",
-      "destination": "/assets/$1"
-    },
-    {
-      "source": "/metadata.json",
-      "destination": "/metadata.json"
-    },
-    {
-      "source": "/((?!api|_expo|assets|metadata\\.json).*)",
-      "destination": "/index.html"
     }
   ]
 }
