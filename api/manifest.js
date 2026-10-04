@@ -17,12 +17,7 @@ function toUUID(str) {
   return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20, 32)}`.toLowerCase();
 }
 
-// Cache em memória para os metadados e hashes dos assets
-let cachedManifestData = null;
-
 function loadManifestData(platform) {
-  if (cachedManifestData) return cachedManifestData;
-
   let metadataPath = path.join(process.cwd(), 'updates', 'metadata.json');
   if (!fs.existsSync(metadataPath)) {
     metadataPath = path.join(process.cwd(), 'public', 'metadata.json');
@@ -74,15 +69,13 @@ function loadManifestData(platform) {
     };
   });
 
-  cachedManifestData = {
+  return {
     updateId,
     rawUpdateId,
     bundleRelative,
     bundleMeta,
     assets,
   };
-
-  return cachedManifestData;
 }
 
 module.exports = (req, res) => {
@@ -99,7 +92,6 @@ module.exports = (req, res) => {
   const runtimeVersion = req.headers['expo-runtime-version'] || req.query['runtime-version'] || '1.1.0';
   const clientProtocolVersion = req.headers['expo-protocol-version'] || '1';
   const acceptHeader = req.headers['accept'] || '';
-  const currentUpdateId = req.headers['expo-current-update-id'];
 
   const manifestData = loadManifestData(platform);
   if (!manifestData) {
@@ -108,42 +100,9 @@ module.exports = (req, res) => {
     return res.status(204).end();
   }
 
-  const { updateId, rawUpdateId, bundleRelative, bundleMeta, assets } = manifestData;
-
-  // Verifica se o dispositivo já está executando exatamente este update
-  const isAlreadyUpToDate =
-    req.query.force !== 'true' &&
-    currentUpdateId &&
-    (currentUpdateId.replace(/-/g, '').toLowerCase() === rawUpdateId.toLowerCase() ||
-     currentUpdateId.toLowerCase() === updateId.toLowerCase());
-
+  const { updateId, bundleMeta, assets } = manifestData;
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'tkst-player.vercel.app';
   const baseUrl = `https://${host}`;
-
-  // Se o cliente já está 100% atualizado
-  if (isAlreadyUpToDate) {
-    res.setHeader('expo-protocol-version', clientProtocolVersion);
-    res.setHeader('expo-sfv-version', 0);
-    res.setHeader('cache-control', 'private, max-age=0');
-
-    // Se o cliente aceita multipart/mixed (expo-updates protocolo 1)
-    if (acceptHeader.includes('multipart/mixed') || clientProtocolVersion === '1') {
-      const boundary = `---------------------------${Date.now()}`;
-      const directiveBody = JSON.stringify({ type: 'noUpdateAvailable' });
-      const multipartResponse =
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="directive"\r\n` +
-        `Content-Type: application/json; charset=utf-8\r\n\r\n` +
-        directiveBody +
-        `\r\n--${boundary}--\r\n`;
-
-      res.setHeader('content-type', `multipart/mixed; boundary=${boundary}`);
-      return res.status(200).send(Buffer.from(multipartResponse, 'utf-8'));
-    }
-
-    // Caso contrário, HTTP 204 No Content
-    return res.status(204).end();
-  }
 
   // Constrói o Manifest completo e 100% aderente ao protocolo Expo Updates v1
   const manifest = {
@@ -169,18 +128,18 @@ module.exports = (req, res) => {
       expoClient: {
         name: 'TKST Player',
         slug: 'tkst-player',
-        version: '1.3.0',
+        version: '1.4.0',
       },
     },
   };
 
   res.setHeader('expo-protocol-version', clientProtocolVersion);
   res.setHeader('expo-sfv-version', 0);
-  res.setHeader('cache-control', 'private, max-age=0');
+  res.setHeader('cache-control', 'private, max-age=0, no-cache');
 
   // Se o cliente aceita multipart/mixed (padrão nativo do expo-updates no Android)
   if (acceptHeader.includes('multipart/mixed') || clientProtocolVersion === '1') {
-    const boundary = `---------------------------${Date.now()}`;
+    const boundary = `----ExpoUpdatesBoundary${Date.now()}`;
     const manifestJson = JSON.stringify(manifest);
     const extensionsJson = JSON.stringify({ assetRequestHeaders: {} });
 

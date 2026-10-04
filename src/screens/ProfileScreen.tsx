@@ -134,7 +134,7 @@ export const ProfileScreen = () => {
         setUpdateMessage('Atualização pronta!');
         Alert.alert(
           'Nova Versão Instalada!',
-          'A atualização mais recente da Vercel (v1.3.1) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para carregar as novidades?',
+          'A atualização mais recente da Vercel (v1.4.0) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para carregar as novidades?',
           [
             { text: 'Mais tarde', style: 'cancel' },
             {
@@ -150,7 +150,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Sincronizado com a Vercel',
-          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.3.1\n• Motores: YouTube Music + SoundCloud\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
+          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.4.0\n• Motores: YouTube Music + SoundCloud\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
           [
             { text: 'Fechar', style: 'cancel' },
             {
@@ -233,7 +233,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Ionicons name="shield" size={20} color="#00E5FF" />
-                <Text style={styles.statNumber}>v1.3.1</Text>
+                <Text style={styles.statNumber}>v1.4.0</Text>
                 <Text style={styles.statLabel}>Versão do App</Text>
               </View>
             </View>
@@ -424,7 +424,7 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.3.1 (YouTube & SoundCloud)</Text>
+                <Text style={styles.versionValue}>v1.4.0 (YouTube & SoundCloud)</Text>
               </View>
             </View>
 
