@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import { supabase } from '../services/supabaseClient';
 import { DownloadManager } from '../services/downloadManager';
+import { TKSTBackground } from '../components/TKSTBackground';
 
 export const ProfileScreen = () => {
   const [user, setUser] = useState<any>(null);
@@ -152,11 +153,12 @@ export const ProfileScreen = () => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 180 }}
-      keyboardShouldPersistTaps="handled"
-    >
+    <TKSTBackground variant="tiger" opacity={0.09}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 180 }}
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.heading}>Perfil & Backup</Text>
 
       {user ? (
@@ -258,13 +260,14 @@ export const ProfileScreen = () => {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </TKSTBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0E',
+    backgroundColor: 'transparent',
     paddingTop: 54,
     paddingHorizontal: 16,
   },

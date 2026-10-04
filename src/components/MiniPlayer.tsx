@@ -44,8 +44,16 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onPress, bottomOffset })
 
         <TouchableOpacity
           style={styles.touchControl}
+          onPress={() => audioService.previous()}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+        >
+          <Ionicons name="play-skip-back" size={20} color="#A0A0A8" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.touchControl}
           onPress={() => audioService.togglePlayPause()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
         >
           <Ionicons
             name={playback.isPlaying ? 'pause' : 'play'}
@@ -57,9 +65,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onPress, bottomOffset })
         <TouchableOpacity
           style={styles.touchControl}
           onPress={() => audioService.next()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
         >
-          <Ionicons name="play-skip-forward" size={24} color="#A0A0A8" />
+          <Ionicons name="play-skip-forward" size={20} color="#A0A0A8" />
         </TouchableOpacity>
       </TouchableOpacity>
     </View>

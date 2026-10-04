@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RecommendationEngine } from '../services/recommendationEngine';
 import { MusicApi } from '../services/musicApi';
 import { audioService } from '../services/audioService';
+import { TKSTBackground } from '../components/TKSTBackground';
 import { Track } from '../types';
 
 export const HomeScreen = () => {
@@ -58,11 +59,12 @@ export const HomeScreen = () => {
   }, []);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 180 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5FF" />}
-    >
+    <TKSTBackground variant="clean" opacity={0.08}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 180 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5FF" />}
+      >
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>{getGreeting()}</Text>
@@ -134,13 +136,14 @@ export const HomeScreen = () => {
         />
       </View>
     </ScrollView>
+    </TKSTBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0E',
+    backgroundColor: 'transparent',
     paddingTop: 54,
   },
   header: {

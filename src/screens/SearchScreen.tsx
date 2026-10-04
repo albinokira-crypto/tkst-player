@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { MusicApi } from '../services/musicApi';
 import { audioService } from '../services/audioService';
+import { TKSTBackground } from '../components/TKSTBackground';
 import { Track } from '../types';
 
 const TrackItem = React.memo(({ track, onPress }: { track: Track; onPress: () => void }) => (
@@ -51,7 +52,8 @@ export const SearchScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <TKSTBackground variant="kanji" opacity={0.08}>
+      <View style={styles.container}>
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color="#707078" />
         <TextInput
@@ -84,14 +86,15 @@ export const SearchScreen = () => {
           }
         />
       )}
-    </View>
+      </View>
+    </TKSTBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0E',
+    backgroundColor: 'transparent',
     paddingTop: 54,
     paddingHorizontal: 16,
   },
