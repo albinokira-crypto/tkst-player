@@ -12,6 +12,9 @@ module.exports = (req, res) => {
   
   const possiblePaths = [
     path.join(process.cwd(), 'updates', safeAsset),
+    path.join(process.cwd(), 'updates', 'assets', path.basename(safeAsset)),
+    path.join(process.cwd(), 'updates', path.basename(safeAsset)),
+    path.join(process.cwd(), 'api', path.basename(safeAsset)),
     path.join(process.cwd(), 'updates', safeAsset.replace(/^_expo\//, 'bundles/')),
     path.join(process.cwd(), 'public', safeAsset),
     path.join(process.cwd(), safeAsset),
