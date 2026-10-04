@@ -40,8 +40,12 @@ function loadManifestData(platform) {
   }
 
   let bundleBuf = Buffer.alloc(0);
+  let bundleCreatedAt = '2026-10-04T15:00:00.000Z';
   if (fs.existsSync(bundleFullPath)) {
     bundleBuf = fs.readFileSync(bundleFullPath);
+    try {
+      bundleCreatedAt = fs.statSync(bundleFullPath).mtime.toISOString();
+    } catch {}
   }
   const bundleMeta = getAssetHashAndKey(bundleBuf);
   const rawUpdateId = bundleRelative.replace(/.*index-/, '').replace(/\.hbc/, '');
@@ -73,6 +77,7 @@ function loadManifestData(platform) {
     updateId,
     rawUpdateId,
     bundleRelative,
+    bundleCreatedAt,
     bundleMeta,
     assets,
   };
@@ -92,6 +97,7 @@ module.exports = (req, res) => {
   const runtimeVersion = req.headers['expo-runtime-version'] || req.query['runtime-version'] || '1.1.0';
   const clientProtocolVersion = req.headers['expo-protocol-version'] || '1';
   const acceptHeader = req.headers['accept'] || '';
+  const currentUpdateId = req.headers['expo-current-update-id'];
 
   const manifestData = loadManifestData(platform);
   if (!manifestData) {
@@ -100,14 +106,43 @@ module.exports = (req, res) => {
     return res.status(204).end();
   }
 
-  const { updateId, bundleMeta, assets } = manifestData;
+  const { updateId, rawUpdateId, bundleCreatedAt, bundleMeta, assets } = manifestData;
+
+  // Se o dispositivo já está executando exatamente este update, encerra o ciclo (evita loop de recarregamento)
+  const isAlreadyUpToDate =
+    currentUpdateId &&
+    (currentUpdateId.replace(/-/g, '').toLowerCase() === rawUpdateId.toLowerCase() ||
+     currentUpdateId.toLowerCase() === updateId.toLowerCase());
+
+  if (isAlreadyUpToDate) {
+    res.setHeader('expo-protocol-version', clientProtocolVersion);
+    res.setHeader('expo-sfv-version', 0);
+    res.setHeader('cache-control', 'private, no-cache, no-store, must-revalidate');
+
+    if (acceptHeader.includes('multipart/mixed') || clientProtocolVersion === '1') {
+      const boundary = `----ExpoUpdatesBoundary${Date.now()}`;
+      const directiveBody = JSON.stringify({ type: 'noUpdateAvailable' });
+      const multipartResponse =
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="directive"\r\n` +
+        `Content-Type: application/json; charset=utf-8\r\n\r\n` +
+        directiveBody +
+        `\r\n--${boundary}--\r\n`;
+
+      res.setHeader('content-type', `multipart/mixed; boundary=${boundary}`);
+      return res.status(200).send(Buffer.from(multipartResponse, 'utf-8'));
+    }
+
+    return res.status(204).end();
+  }
+
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'tkst-player.vercel.app';
   const baseUrl = `https://${host}`;
 
   // Constrói o Manifest completo e 100% aderente ao protocolo Expo Updates v1
   const manifest = {
     id: updateId,
-    createdAt: new Date().toISOString(),
+    createdAt: bundleCreatedAt,
     runtimeVersion: runtimeVersion,
     launchAsset: {
       hash: bundleMeta.hash,

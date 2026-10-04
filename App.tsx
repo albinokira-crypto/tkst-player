@@ -79,7 +79,9 @@ function MainApp() {
           const update = await Updates.checkForUpdateAsync();
           if (update.isAvailable) {
             await Updates.fetchUpdateAsync();
-            await Updates.reloadAsync();
+            // Atualização baixada silenciosamente no cache local.
+            // Será aplicada suavemente na próxima inicialização ou via tela de Perfil,
+            // evitando cortes de tela e recarregamento forçado durante o uso.
           }
         }
       } catch (err) {
