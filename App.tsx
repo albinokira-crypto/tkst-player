@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Updates from 'expo-updates';
 
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
@@ -70,6 +71,23 @@ const Tab = createBottomTabNavigator();
 function MainApp() {
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    async function checkAutoUpdates() {
+      try {
+        if (!__DEV__) {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+          }
+        }
+      } catch (err) {
+        // Falha de rede ou offline - segue normalmente
+      }
+    }
+    checkAutoUpdates();
+  }, []);
 
   // Em dispositivos Android com barra de 3 botões (Home, Voltar, Recentes) ou gestos,
   // insets.bottom fornece a altura exata da barra do sistema operacional.

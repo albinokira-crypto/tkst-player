@@ -2,11 +2,12 @@
   "expo": {
     "name": "TKST Player",
     "slug": "tkst-player",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
+      "url": "https://tkst-player-valeiroguerrente.vercel.app/api/manifest",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
@@ -24,7 +25,7 @@
     },
     "android": {
       "package": "com.tkst.player",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#08080A",
         "foregroundImage": "./assets/android-icon-foreground.png"
