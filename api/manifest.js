@@ -112,13 +112,13 @@ module.exports = (req, res) => {
 
   // Verifica se o dispositivo já está executando exatamente este update
   const isAlreadyUpToDate =
+    req.query.force !== 'true' &&
     currentUpdateId &&
     (currentUpdateId.replace(/-/g, '').toLowerCase() === rawUpdateId.toLowerCase() ||
      currentUpdateId.toLowerCase() === updateId.toLowerCase());
 
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'tkst-player.vercel.app';
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const baseUrl = `${proto}://${host}`;
+  const baseUrl = `https://${host}`;
 
   // Se o cliente já está 100% atualizado
   if (isAlreadyUpToDate) {

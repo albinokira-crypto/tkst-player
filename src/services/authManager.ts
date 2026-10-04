@@ -109,36 +109,41 @@ export const AuthManager = {
       }
       const users: Record<string, { profile: UserProfile; passwordHash: string }> = usersStr ? JSON.parse(usersStr) : {};
 
-      if (users[cleanEmail]) {
-        return { user: null, error: 'Este e-mail já possui uma conta cadastrada. Faça login usando sua senha.' };
-      }
-
       const rawName = name?.trim();
       const displayName = rawName && rawName.length > 0 ? rawName : cleanEmail.split('@')[0];
       const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
-      const newUser: UserProfile = {
-        id: `tkst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: formattedName,
-        email: cleanEmail,
-        createdAt: new Date().toISOString(),
-        role: 'Membro Oficial TKST',
-      };
+      // Se a conta já existe, atualiza as credenciais e entra diretamente (sem travar o usuário)
+      let targetUser: UserProfile;
+      if (users[cleanEmail]) {
+        targetUser = {
+          ...users[cleanEmail].profile,
+          name: formattedName || users[cleanEmail].profile.name,
+        };
+      } else {
+        targetUser = {
+          id: `tkst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          name: formattedName,
+          email: cleanEmail,
+          createdAt: new Date().toISOString(),
+          role: 'Membro Oficial TKST',
+        };
+      }
 
       // Salva usuário no banco local
       users[cleanEmail] = {
-        profile: newUser,
+        profile: targetUser,
         passwordHash: password,
       };
       await AsyncStorage.setItem(USERS_KEY_V2, JSON.stringify(users));
 
       // Salva sessão ativa
-      const sessionJson = JSON.stringify(newUser);
+      const sessionJson = JSON.stringify(targetUser);
       await safeSecureSet(SESSION_KEY_V2, sessionJson);
       await AsyncStorage.setItem(SESSION_KEY_V2, sessionJson);
 
-      notifyListeners(newUser);
-      return { user: newUser };
+      notifyListeners(targetUser);
+      return { user: targetUser };
     } catch (e: any) {
       console.error('[AuthManager] Erro no cadastro:', e);
       return { user: null, error: e?.message || 'Falha ao salvar dados de usuário.' };
@@ -147,8 +152,11 @@ export const AuthManager = {
 
   async signIn(email: string, password: string): Promise<{ user: UserProfile | null; error?: string }> {
     const cleanEmail = email ? email.trim().toLowerCase() : '';
-    if (!cleanEmail || !password) {
-      return { user: null, error: 'Preencha o e-mail e a senha.' };
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { user: null, error: 'Por favor, informe um e-mail válido.' };
+    }
+    if (!password || password.trim().length < 6) {
+      return { user: null, error: 'A senha precisa ter no mínimo 6 caracteres.' };
     }
 
     try {
@@ -159,12 +167,13 @@ export const AuthManager = {
       const users: Record<string, { profile: UserProfile; passwordHash: string }> = usersStr ? JSON.parse(usersStr) : {};
 
       const userRecord = users[cleanEmail];
+      // Se não encontrou a conta, cria automaticamente para o usuário não ficar preso!
       if (!userRecord) {
-        return { user: null, error: 'Nenhuma conta encontrada com este e-mail. Clique no botão "Criar Nova Conta" abaixo para se cadastrar.' };
+        return await this.signUp(cleanEmail, password);
       }
 
       if (userRecord.passwordHash !== password) {
-        return { user: null, error: 'Senha incorreta. Verifique e tente novamente.' };
+        return { user: null, error: 'Senha incorreta para este e-mail. Se esqueceu, use a aba "Criar Conta" para redefinir.' };
       }
 
       // Salva sessão ativa
@@ -177,6 +186,23 @@ export const AuthManager = {
     } catch (e: any) {
       return { user: null, error: e?.message || 'Falha ao autenticar.' };
     }
+  },
+
+  async signInAsGuest(): Promise<UserProfile> {
+    const guestUser: UserProfile = {
+      id: `guest_${Date.now()}`,
+      name: 'Guerreiro TKST',
+      email: 'convidado@tkst.app',
+      createdAt: new Date().toISOString(),
+      role: 'Visitante TKST',
+    };
+
+    const sessionJson = JSON.stringify(guestUser);
+    await safeSecureSet(SESSION_KEY_V2, sessionJson);
+    await AsyncStorage.setItem(SESSION_KEY_V2, sessionJson);
+
+    notifyListeners(guestUser);
+    return guestUser;
   },
 
   async signOut(): Promise<void> {
