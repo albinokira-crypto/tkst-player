@@ -143,7 +143,7 @@ export const ProfileScreen = () => {
         setUpdateMessage('Atualização pronta!');
         Alert.alert(
           'Nova Versão Instalada!',
-          'A versão mais recente da Vercel (v1.7.2) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para aplicar o filtro estrito de músicas de estúdio e vídeo clipes?',
+          'A versão mais recente da Vercel (v1.8.0) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para carregar o novo catálogo de Discografia Oficial e Álbuns Comerciais?',
           [
             { text: 'Mais tarde', style: 'cancel' },
             {
@@ -433,13 +433,13 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.7.2 (Estúdio & Vídeo Clipes)</Text>
+                <Text style={styles.versionValue}>v1.8.0 (Discografia & Álbuns Oficiais)</Text>
               </View>
             </View>
 
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Motor de Áudio:</Text>
-              <Text style={styles.versionSubValue}>YouTube Music + YouTube (Áudio Integral)</Text>
+              <Text style={styles.versionSubValue}>Deezer + iTunes + YouTube Music (Estúdio)</Text>
             </View>
 
             <View style={styles.versionRow}>

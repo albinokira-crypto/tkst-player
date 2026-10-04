@@ -19,7 +19,8 @@ import { DownloadManager } from '../services/downloadManager';
 import { PlaylistManager, Playlist } from '../services/playlistManager';
 import { audioService } from '../services/audioService';
 import { TKSTBackground } from '../components/TKSTBackground';
-import { Track } from '../types';
+import { Track, Album } from '../types';
+import { AlbumDetailsScreen } from './AlbumDetailsScreen';
 
 export const PlaylistsScreen = () => {
   const insets = useSafeAreaInsets();
@@ -29,7 +30,10 @@ export const PlaylistsScreen = () => {
     36
   );
   const [activeTab, setActiveTab] = useState<'playlists' | 'downloads'>('playlists');
+  const [downloadSubTab, setDownloadSubTab] = useState<'tracks' | 'albums'>('tracks');
   const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
+  const [offlineAlbums, setOfflineAlbums] = useState<Album[]>([]);
+  const [selectedDownloadedAlbum, setSelectedDownloadedAlbum] = useState<Album | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
@@ -45,10 +49,13 @@ export const PlaylistsScreen = () => {
   }, []);
 
   const loadData = async () => {
-    const offlineList = await DownloadManager.getDownloadedTracks();
+    const [offlineList, albumsList, playlistList] = await Promise.all([
+      DownloadManager.getDownloadedTracks(),
+      DownloadManager.getDownloadedAlbums(),
+      PlaylistManager.getPlaylists(),
+    ]);
     setOfflineTracks(offlineList);
-
-    const playlistList = await PlaylistManager.getPlaylists();
+    setOfflineAlbums(albumsList);
     setPlaylists(playlistList);
 
     // Atualiza playlist selecionada se estiver aberta
@@ -61,6 +68,7 @@ export const PlaylistsScreen = () => {
   useEffect(() => {
     loadData();
   }, [activeTab]);
+
 
   const handlePlayDownloaded = (track: Track, index: number) => {
     audioService.setQueue(offlineTracks, index);
@@ -113,6 +121,36 @@ export const PlaylistsScreen = () => {
     audioService.setQueue(selectedPlaylist.tracks, startIndex);
   };
 
+  if (selectedDownloadedAlbum) {
+    return (
+      <AlbumDetailsScreen
+        album={selectedDownloadedAlbum}
+        onBack={() => {
+          setSelectedDownloadedAlbum(null);
+          loadData();
+        }}
+      />
+    );
+  }
+
+  const handleRemoveOfflineAlbum = (albumId: string, albumTitle: string) => {
+    Alert.alert(
+      'Remover Álbum Baixado',
+      `Deseja remover o álbum "${albumTitle}" e todas as suas faixas offline?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            await DownloadManager.removeDownloadedAlbum(albumId);
+            loadData();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <TKSTBackground variant="emblem" opacity={0.24}>
       <View style={[styles.container, { paddingTop: topInset + 14 }]}>
@@ -136,47 +174,136 @@ export const PlaylistsScreen = () => {
             }}
           >
             <Text style={[styles.tabText, activeTab === 'downloads' && styles.tabTextActive]}>
-              Baixadas ({offlineTracks.length})
+              Baixadas ({offlineTracks.length + offlineAlbums.length})
             </Text>
           </TouchableOpacity>
         </View>
 
         {activeTab === 'downloads' ? (
-          <FlatList
-            data={offlineTracks}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 180 }}
-            renderItem={({ item, index }) => (
-              <View style={styles.trackRow}>
-                <TouchableOpacity
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => handlePlayDownloaded(item, index)}
+          <View style={{ flex: 1 }}>
+            {/* Sub-abas de Downloads: Músicas vs Álbuns */}
+            <View style={styles.downloadSubTabs}>
+              <TouchableOpacity
+                style={[
+                  styles.downloadSubTabBtn,
+                  downloadSubTab === 'tracks' && styles.downloadSubTabBtnActive,
+                ]}
+                onPress={() => setDownloadSubTab('tracks')}
+              >
+                <Ionicons
+                  name="musical-notes"
+                  size={14}
+                  color={downloadSubTab === 'tracks' ? '#00E5FF' : '#707078'}
+                />
+                <Text
+                  style={[
+                    styles.downloadSubTabText,
+                    downloadSubTab === 'tracks' && styles.downloadSubTabTextActive,
+                  ]}
                 >
-                  <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.artist} numberOfLines={1}>{item.artist}</Text>
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleRemoveOffline(item.id)}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#FF453A" />
-                </TouchableOpacity>
-              </View>
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons name="cloud-offline-outline" size={54} color="#3A3A46" />
-                <Text style={styles.emptyTitle}>Sem músicas offline</Text>
-                <Text style={styles.emptySubtitle}>
-                  Abra qualquer música no Player e toque no ícone de download para ouvir sem internet.
+                  Faixas ({offlineTracks.length})
                 </Text>
-              </View>
-            }
-          />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.downloadSubTabBtn,
+                  downloadSubTab === 'albums' && styles.downloadSubTabBtnActive,
+                ]}
+                onPress={() => setDownloadSubTab('albums')}
+              >
+                <Ionicons
+                  name="disc"
+                  size={14}
+                  color={downloadSubTab === 'albums' ? '#00E5FF' : '#707078'}
+                />
+                <Text
+                  style={[
+                    styles.downloadSubTabText,
+                    downloadSubTab === 'albums' && styles.downloadSubTabTextActive,
+                  ]}
+                >
+                  Álbuns ({offlineAlbums.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {downloadSubTab === 'tracks' ? (
+              <FlatList
+                data={offlineTracks}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ paddingBottom: 180 }}
+                renderItem={({ item, index }) => (
+                  <View style={styles.trackRow}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => handlePlayDownloaded(item, index)}
+                    >
+                      <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.artist} numberOfLines={1}>{item.artist}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleRemoveOffline(item.id)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#FF453A" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="cloud-offline-outline" size={54} color="#3A3A46" />
+                    <Text style={styles.emptyTitle}>Sem músicas offline</Text>
+                    <Text style={styles.emptySubtitle}>
+                      Abra qualquer música ou álbum e toque no botão de baixar para ouvir sem internet.
+                    </Text>
+                  </View>
+                }
+              />
+            ) : (
+              <FlatList
+                data={offlineAlbums}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ paddingBottom: 180 }}
+                renderItem={({ item }) => (
+                  <View style={styles.trackRow}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => setSelectedDownloadedAlbum(item)}
+                    >
+                      <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.artist} numberOfLines={1}>
+                          {item.artist} • {item.tracks?.length || item.totalTracks} faixas
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleRemoveOfflineAlbum(item.id, item.title)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#FF453A" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="disc-outline" size={54} color="#3A3A46" />
+                    <Text style={styles.emptyTitle}>Sem álbuns offline</Text>
+                    <Text style={styles.emptySubtitle}>
+                      Busque qualquer álbum comercial e toque em "Baixar Álbum" para salvar o disco inteiro.
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
         ) : selectedPlaylist ? (
+
           /* Visualização da Playlist Selecionada */
           <View style={{ flex: 1 }}>
             <View style={styles.playlistDetailHeader}>
@@ -417,6 +544,39 @@ const styles = StyleSheet.create({
     color: '#00E5FF',
     fontWeight: '700',
   },
+  downloadSubTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#12121A',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#1E1E2C',
+  },
+  downloadSubTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 7,
+    gap: 6,
+  },
+  downloadSubTabBtnActive: {
+    backgroundColor: '#00E5FF18',
+    borderWidth: 1,
+    borderColor: '#00E5FF50',
+  },
+  downloadSubTabText: {
+    color: '#707078',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  downloadSubTabTextActive: {
+    color: '#00E5FF',
+    fontWeight: '700',
+  },
+
   createButtonHeader: {
     flexDirection: 'row',
     alignItems: 'center',

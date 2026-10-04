@@ -1,10 +1,11 @@
-import { Track } from '../types';
+import { Track, Album, Artist } from '../types';
+import { AlbumService } from './albumService';
 
 export interface SearchResult {
   tracks: Track[];
   hasMore: boolean;
   total?: number;
-  provider: 'youtube' | 'soundcloud' | 'itunes' | 'mixed';
+  provider: 'youtube' | 'soundcloud' | 'itunes' | 'deezer' | 'mixed';
 }
 
 // Expressão regular rigorosa para rejeitar faixas instrumentais, karaokê ou sem voz
@@ -357,16 +358,61 @@ export class SearchService {
   }
 
   /**
-   * Motor de Busca Exclusivo: YouTube Music + YouTube
-   * 1. Consulta em paralelo YouTube Music (álbuns e lançamentos oficiais) e YouTube Global (clipes e áudios).
+   * Catálogo Oficial Deezer: Metadados oficiais de faixas de estúdio comerciais
+   */
+  private static async searchDeezerTracks(query: string, limit = 12): Promise<Track[]> {
+    try {
+      const res = await fetch(`https://api.deezer.com/search/track?q=${encodeURIComponent(query)}&limit=${limit}`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      if (!json.data || !Array.isArray(json.data)) return [];
+
+      const tracks: Track[] = [];
+      for (const item of json.data) {
+        if (!item.title || !item.artist) continue;
+        if (
+          BLACKLIST_REGEX.test(item.title) ||
+          BLACKLIST_REGEX.test(item.artist?.name || '') ||
+          isLiveOrAcoustic(item.title)
+        ) {
+          continue;
+        }
+
+        const thumb =
+          item.album?.cover_xl ||
+          item.album?.cover_big ||
+          item.album?.cover_medium ||
+          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+
+        tracks.push({
+          id: `dz_track_${item.id}`,
+          title: item.title_short || item.title,
+          artist: item.artist?.name || 'Artista',
+          album: item.album?.title || 'Álbum Oficial',
+          albumId: item.album?.id ? `deezer_${item.album.id}` : undefined,
+          artworkUrl: thumb,
+          audioUrl: item.preview || '',
+          durationSeconds: item.duration || 180,
+          genre: 'Oficial',
+        });
+      }
+      return tracks;
+    } catch (e) {
+      console.warn('Deezer track search error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Motor de Busca Híbrido Oficial: Deezer + YouTube Music + YouTube
+   * 1. Consulta em paralelo catálogo comercial oficial (Deezer) e YouTube Music (álbuns e lançamentos).
    * 2. Inclui SoundCloud para vocais alternativos de estúdio.
-   * 3. Deezer foi 100% eliminado.
-   * 4. Bloqueia estritamente faixas instrumentais e karaokê.
+   * 3. Bloqueia estritamente faixas instrumentais e karaokê.
    */
   static async searchTracks(query: string, page = 0, limit = 25): Promise<SearchResult> {
     const cleanQuery = query.trim();
     if (!cleanQuery) {
-      return { tracks: [], hasMore: false, provider: 'youtube' };
+      return { tracks: [], hasMore: false, provider: 'mixed' };
     }
 
     const cacheKey = `${cleanQuery.toLowerCase()}_p${page}_l${limit}`;
@@ -375,14 +421,16 @@ export class SearchService {
       return cached.result;
     }
 
-    // Consulta simultânea com foco em Músicas de Estúdio e Vídeo Clipes Oficiais
-    const [ytmResult, ytClipsResult, ytStudioResult, scResult] = await Promise.allSettled([
-      this.searchYouTubeMusic(cleanQuery, 16),
-      this.searchYouTube(`${cleanQuery} clipe oficial`, 12),
-      this.searchYouTube(`${cleanQuery} audio oficial`, 12),
+    // Consulta simultânea com foco em Músicas de Estúdio Oficiais e Vídeo Clipes
+    const [dzResult, ytmResult, ytClipsResult, ytStudioResult, scResult] = await Promise.allSettled([
+      this.searchDeezerTracks(cleanQuery, 14),
+      this.searchYouTubeMusic(cleanQuery, 14),
+      this.searchYouTube(`${cleanQuery} clipe oficial`, 10),
+      this.searchYouTube(`${cleanQuery} audio oficial`, 10),
       this.searchSoundCloud(cleanQuery, 8),
     ]);
 
+    const dzTracks = dzResult.status === 'fulfilled' ? dzResult.value : [];
     const ytmTracks = ytmResult.status === 'fulfilled' ? ytmResult.value : [];
     const ytClips = ytClipsResult.status === 'fulfilled' ? ytClipsResult.value : [];
     const ytStudio = ytStudioResult.status === 'fulfilled' ? ytStudioResult.value : [];
@@ -406,22 +454,24 @@ export class SearchService {
       }
     };
 
-    // 1. YouTube Music (Versões oficiais de álbum de estúdio)
+    // 1. Faixas Oficiais do Catálogo Deezer (Metadados de altíssima fidelidade e capas 1000x1000)
+    dzTracks.forEach(addStudioTrack);
+
+    // 2. YouTube Music (Versões oficiais de álbum de estúdio)
     ytmTracks.forEach(addStudioTrack);
 
-    // 2. YouTube Global: Vídeo Clipes Oficiais (áudios originais de clipe)
+    // 3. YouTube Global: Vídeo Clipes Oficiais
     ytClips.forEach(addStudioTrack);
 
-    // 3. YouTube Global: Áudios Oficiais de Estúdio
+    // 4. YouTube Global: Áudios Oficiais de Estúdio
     ytStudio.forEach(addStudioTrack);
 
-    // 4. SoundCloud (áudios de estúdio)
+    // 5. SoundCloud (áudios de estúdio)
     scTracks.forEach(addStudioTrack);
 
     let combinedTracks = Array.from(trackMap.values());
 
-    // Se nenhum resultado de estúdio estrito foi retornado (ex: artista que só gravou DVD de show),
-    // inclui resultados de fallback para evitar tela em branco
+    // Se nenhum resultado de estúdio estrito foi retornado, busca fallback
     if (combinedTracks.length === 0) {
       const fallbackYt = await this.searchYouTube(cleanQuery, 15);
       combinedTracks = fallbackYt;
@@ -431,12 +481,13 @@ export class SearchService {
       tracks: combinedTracks.slice(0, limit),
       hasMore: combinedTracks.length >= limit,
       total: combinedTracks.length,
-      provider: 'youtube',
+      provider: 'mixed',
     };
 
     this.cache.set(cacheKey, { result: finalResult, timestamp: Date.now() });
     return finalResult;
   }
+
 
   /**
    * Retorna os Top Hits Globais reais no YouTube Music e YouTube
@@ -491,4 +542,198 @@ export class SearchService {
     const res = await this.searchTracks(genre, 0, limit);
     return res.tracks;
   }
+
+  private static albumSearchCache = new Map<string, { albums: Album[]; timestamp: number }>();
+  private static artistSearchCache = new Map<string, { artists: Artist[]; timestamp: number }>();
+
+  /**
+   * Busca álbuns oficiais de bandas e artistas no catálogo Deezer e iTunes
+   */
+  static async searchAlbums(query: string, limit = 24): Promise<Album[]> {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return [];
+
+    const cacheKey = `album_${cleanQuery.toLowerCase()}_${limit}`;
+    const cached = this.albumSearchCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
+      return cached.albums;
+    }
+
+    const [deezerRes, itunesRes] = await Promise.allSettled([
+      fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`),
+      fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&entity=album&limit=${limit}`),
+    ]);
+
+    const albums: Album[] = [];
+
+    // 1. Processa Deezer
+    if (deezerRes.status === 'fulfilled' && deezerRes.value.ok) {
+      try {
+        const json = await deezerRes.value.json();
+        if (json.data && Array.isArray(json.data)) {
+          for (const item of json.data) {
+            const artworkUrl =
+              item.cover_xl ||
+              item.cover_big ||
+              item.cover_medium ||
+              'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+            const releaseYear = item.release_date ? item.release_date.split('-')[0] : '';
+
+            albums.push({
+              id: `deezer_${item.id}`,
+              title: item.title,
+              artist: item.artist?.name || 'Artista',
+              artistId: item.artist?.id ? `deezer_${item.artist.id}` : undefined,
+              artworkUrl,
+              releaseYear,
+              releaseDate: item.release_date,
+              totalTracks: item.nb_tracks || 0,
+              genre: item.record_type ? item.record_type.toUpperCase() : 'Álbum',
+              source: 'deezer',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar álbuns da Deezer:', e);
+      }
+    }
+
+    // 2. Processa iTunes
+    if (itunesRes.status === 'fulfilled' && itunesRes.value.ok) {
+      try {
+        const json = await itunesRes.value.json();
+        if (json.results && Array.isArray(json.results)) {
+          for (const item of json.results) {
+            const rawCover = item.artworkUrl100 || '';
+            const artworkUrl = rawCover
+              ? rawCover.replace('100x100bb.jpg', '600x600bb.jpg')
+              : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+            const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
+
+            albums.push({
+              id: `itunes_${item.collectionId}`,
+              title: item.collectionName || item.collectionCensoredName,
+              artist: item.artistName || 'Artista',
+              artistId: item.artistId ? `itunes_${item.artistId}` : undefined,
+              artworkUrl,
+              releaseYear,
+              releaseDate: item.releaseDate,
+              totalTracks: item.trackCount || 0,
+              genre: item.primaryGenreName || 'Álbum',
+              recordLabel: item.copyright,
+              source: 'itunes',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar álbuns do iTunes:', e);
+      }
+    }
+
+    // 3. Deduplicação inteligente e ordenação
+    const uniqueMap = new Map<string, Album>();
+    for (const alb of albums) {
+      const key = `${alb.artist.toLowerCase()} - ${alb.title.toLowerCase()}`.replace(/[^a-z0-9]/g, '');
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, alb);
+      }
+    }
+
+    const result = Array.from(uniqueMap.values()).slice(0, limit);
+    this.albumSearchCache.set(cacheKey, { albums: result, timestamp: Date.now() });
+    return result;
+  }
+
+  /**
+   * Busca artistas no catálogo oficial (Deezer e iTunes)
+   */
+  static async searchArtists(query: string, limit = 20): Promise<Artist[]> {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return [];
+
+    const cacheKey = `artist_${cleanQuery.toLowerCase()}_${limit}`;
+    const cached = this.artistSearchCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
+      return cached.artists;
+    }
+
+    const [deezerRes, itunesRes] = await Promise.allSettled([
+      fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`),
+      fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&entity=musicArtist&limit=${limit}`),
+    ]);
+
+    const artists: Artist[] = [];
+
+    // 1. Processa Deezer Artists
+    if (deezerRes.status === 'fulfilled' && deezerRes.value.ok) {
+      try {
+        const json = await deezerRes.value.json();
+        if (json.data && Array.isArray(json.data)) {
+          for (const item of json.data) {
+            const pictureUrl =
+              item.picture_xl ||
+              item.picture_big ||
+              item.picture_medium ||
+              'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400';
+
+            artists.push({
+              id: `deezer_${item.id}`,
+              name: item.name,
+              pictureUrl,
+              albumsCount: item.nb_album,
+              source: 'deezer',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar artistas da Deezer:', e);
+      }
+    }
+
+    // 2. Processa iTunes Artists
+    if (itunesRes.status === 'fulfilled' && itunesRes.value.ok) {
+      try {
+        const json = await itunesRes.value.json();
+        if (json.results && Array.isArray(json.results)) {
+          for (const item of json.results) {
+            artists.push({
+              id: `itunes_${item.artistId}`,
+              name: item.artistName,
+              pictureUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400',
+              genre: item.primaryGenreName,
+              source: 'itunes',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar artistas do iTunes:', e);
+      }
+    }
+
+    // Deduplica artistas por nome
+    const artistMap = new Map<string, Artist>();
+    for (const art of artists) {
+      const key = art.name.toLowerCase().trim();
+      if (!artistMap.has(key)) {
+        artistMap.set(key, art);
+      } else {
+        const existing = artistMap.get(key)!;
+        if ((!existing.albumsCount && art.albumsCount) || (existing.pictureUrl.includes('unsplash') && !art.pictureUrl.includes('unsplash'))) {
+          artistMap.set(key, art);
+        }
+      }
+    }
+
+    const result = Array.from(artistMap.values()).slice(0, limit);
+    this.artistSearchCache.set(cacheKey, { artists: result, timestamp: Date.now() });
+    return result;
+  }
+
+  /**
+   * Obtém a discografia oficial de um artista
+   */
+  static async getArtistAlbums(artistId: string, artistName?: string, source?: 'deezer' | 'itunes'): Promise<Album[]> {
+    return await AlbumService.getArtistDiscography(artistId, artistName, source);
+  }
 }
+

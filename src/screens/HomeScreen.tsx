@@ -15,9 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RecommendationEngine } from '../services/recommendationEngine';
 import { MusicApi } from '../services/musicApi';
+import { SearchService } from '../services/searchService';
 import { audioService } from '../services/audioService';
 import { TKSTBackground } from '../components/TKSTBackground';
-import { Track } from '../types';
+import { Track, Album } from '../types';
+import { AlbumDetailsScreen } from './AlbumDetailsScreen';
 
 export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
@@ -29,18 +31,23 @@ export const HomeScreen = () => {
   const [recentTracks, setRecentTracks] = useState<Track[]>([]);
   const [recommendedTracks, setRecommendedTracks] = useState<Track[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<Track[]>([]);
+  const [featuredAlbums, setFeaturedAlbums] = useState<Album[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
-    const [recent, recommended, trending] = await Promise.all([
+    const [recent, recommended, trending, albums] = await Promise.all([
       RecommendationEngine.getRecentlyPlayed(),
       RecommendationEngine.getPersonalizedRecommendations(),
       MusicApi.getTrendingTracks(),
+      SearchService.searchAlbums('Rock Classics Top Hits', 10),
     ]);
     setRecentTracks(recent.slice(0, 6));
     setRecommendedTracks(recommended);
     setTrendingTracks(trending);
+    setFeaturedAlbums(albums);
   };
+
 
   useEffect(() => {
     loadData();
@@ -66,6 +73,15 @@ export const HomeScreen = () => {
     }
     audioService.setQueue(list, index);
   }, []);
+
+  if (selectedAlbum) {
+    return (
+      <AlbumDetailsScreen
+        album={selectedAlbum}
+        onBack={() => setSelectedAlbum(null)}
+      />
+    );
+  }
 
   return (
     <TKSTBackground variant="clean" opacity={0.24}>
@@ -106,6 +122,39 @@ export const HomeScreen = () => {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+      )}
+
+      {featuredAlbums.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Álbuns & Discografias Oficiais</Text>
+            <Text style={styles.badgeText}>Catálogo</Text>
+          </View>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={featuredAlbums}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.cardItem}
+                onPress={() => setSelectedAlbum(item)}
+                activeOpacity={0.8}
+              >
+                <View style={{ position: 'relative' }}>
+                  <Image source={{ uri: item.artworkUrl }} style={styles.cardArtwork} />
+                  <View style={styles.albumBadgeSmall}>
+                    <Text style={styles.albumBadgeSmallText}>DISCO</Text>
+                  </View>
+                </View>
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.cardArtist} numberOfLines={1}>
+                  {item.artist} {item.releaseYear ? `• ${item.releaseYear}` : ''}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
         </View>
       )}
 
@@ -155,6 +204,7 @@ export const HomeScreen = () => {
     </TKSTBackground>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -260,4 +310,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  albumBadgeSmall: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#00E5FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  albumBadgeSmallText: {
+    color: '#0A0A0E',
+    fontSize: 8,
+    fontWeight: '800',
+  },
 });
+

@@ -1,6 +1,6 @@
 {
   "name": "tkst-player",
-  "version": "1.7.2",
+  "version": "1.8.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
