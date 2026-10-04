@@ -142,6 +142,16 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
                   />
                 )}
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => {
+                  audioService.stop();
+                  onClose();
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color="#A0A0B0" />
+              </TouchableOpacity>
             </View>
           </View>
 

@@ -13,6 +13,8 @@ type Listener = (state: PlaybackState) => void;
 
 class AudioService {
   private player: AudioPlayer | null = null;
+  private activePlayers: Set<AudioPlayer> = new Set();
+  private currentPlayRequestId = 0;
   private statusSubscription: { remove: () => void } | null = null;
   private listeners: Set<Listener> = new Set();
   private loadingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -58,7 +60,74 @@ class AudioService {
     this.listeners.forEach((fn) => fn({ ...this.state }));
   }
 
+  /**
+   * Silencia e encerra um player nativo imediatamente para liberar buffers e foco de áudio
+   */
+  private silenceAndRemovePlayer(p: AudioPlayer) {
+    try {
+      p.muted = true;
+      p.volume = 0;
+    } catch {}
+    try {
+      p.setActiveForLockScreen(false);
+    } catch {}
+    try {
+      p.clearLockScreenControls();
+    } catch {}
+    try {
+      p.pause();
+    } catch {}
+    try {
+      p.remove();
+    } catch {}
+  }
+
+  /**
+   * Destrói todos os players ativos e orfãos, garantindo que nenhum áudio continue em segundo plano
+   */
+  private destroyAllPlayers() {
+    if (this.statusSubscription) {
+      try {
+        this.statusSubscription.remove();
+      } catch {}
+      this.statusSubscription = null;
+    }
+
+    if (this.player) {
+      this.activePlayers.add(this.player);
+      this.player = null;
+    }
+
+    for (const p of this.activePlayers) {
+      this.silenceAndRemovePlayer(p);
+    }
+    this.activePlayers.clear();
+  }
+
+  /**
+   * Encerra a reprodução por completo, remove a notificação do Android e reseta o estado
+   */
+  public async stop() {
+    this.currentPlayRequestId++;
+    if (this.loadingTimeout) {
+      clearTimeout(this.loadingTimeout);
+      this.loadingTimeout = null;
+    }
+    this.destroyAllPlayers();
+    this.state.isPlaying = false;
+    this.state.isLoading = false;
+    this.state.isBuffering = false;
+    this.state.positionMillis = 0;
+    this.state.durationMillis = 1;
+    this.state.currentTrack = null;
+    this.state.queue = [];
+    this.state.currentIndex = -1;
+    this.notify();
+  }
+
   public async setQueue(tracks: Track[], startIndex = 0) {
+    this.currentPlayRequestId++;
+    this.destroyAllPlayers();
     this.state.queue = [...tracks];
     this.state.currentIndex = startIndex;
     if (tracks[startIndex]) {
@@ -67,42 +136,63 @@ class AudioService {
   }
 
   public async loadAndPlay(track: Track) {
-    this.state.isLoading = true;
-    this.state.currentTrack = track;
-    this.notify();
+    const requestId = ++this.currentPlayRequestId;
+
+    // 1. Corta qualquer áudio em reprodução de imediato
+    this.destroyAllPlayers();
 
     if (this.loadingTimeout) {
       clearTimeout(this.loadingTimeout);
       this.loadingTimeout = null;
     }
 
-    try {
-      if (this.statusSubscription) {
-        this.statusSubscription.remove();
-        this.statusSubscription = null;
-      }
-      if (this.player) {
-        try {
-          this.player.clearLockScreenControls();
-        } catch {}
-        this.player.pause();
-        this.player.remove();
-        this.player = null;
-      }
+    this.state.isLoading = true;
+    this.state.isBuffering = false;
+    this.state.currentTrack = track;
+    this.state.positionMillis = 0;
+    this.notify();
 
+    try {
+      // 2. Resolução do stream de áudio (assíncrona)
       const sourceUri = await StreamResolver.resolveAudioStream(track);
+
+      // 3. Se uma nova requisição foi feita enquanto esperava a rede, aborta esta
+      if (this.currentPlayRequestId !== requestId) {
+        return;
+      }
 
       if (!sourceUri || typeof sourceUri !== 'string' || sourceUri.trim().length === 0) {
         throw new Error('Não foi possível obter o link de reprodução para esta faixa.');
+      }
+
+      // 4. Garante novamente que nenhum player anterior ficou vivo
+      this.destroyAllPlayers();
+
+      if (this.currentPlayRequestId !== requestId) {
+        return;
       }
 
       const player = createAudioPlayer(sourceUri, {
         updateInterval: 350,
       });
 
+      this.activePlayers.add(player);
+
+      if (this.currentPlayRequestId !== requestId) {
+        this.silenceAndRemovePlayer(player);
+        this.activePlayers.delete(player);
+        return;
+      }
+
+      this.player = player;
+
       // Timeout de segurança de 12 segundos para evitar spinner infinito
       this.loadingTimeout = setTimeout(() => {
-        if (this.state.isLoading && (!this.state.isPlaying || this.state.positionMillis === 0)) {
+        if (
+          this.currentPlayRequestId === requestId &&
+          this.state.isLoading &&
+          (!this.state.isPlaying || this.state.positionMillis === 0)
+        ) {
           console.warn('[AudioService] Timeout ao carregar faixa:', track.title);
           this.state.isLoading = false;
           this.state.isBuffering = false;
@@ -133,12 +223,16 @@ class AudioService {
       }
 
       this.statusSubscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-        this.onPlaybackStatusUpdate(status);
+        if (this.currentPlayRequestId === requestId && this.player === player) {
+          this.onPlaybackStatusUpdate(status);
+        }
       });
 
-      this.player = player;
       player.play();
     } catch (error: any) {
+      if (this.currentPlayRequestId !== requestId) {
+        return; // Requisição descartada
+      }
       console.error('Falha ao carregar áudio:', error);
       if (this.loadingTimeout) {
         clearTimeout(this.loadingTimeout);
@@ -221,9 +315,13 @@ class AudioService {
         this.loadingTimeout = null;
       }
       this.state.isLoading = false;
+      this.state.isPlaying = false;
       this.player.pause();
+      this.notify();
     } else {
       this.player.play();
+      this.state.isPlaying = true;
+      this.notify();
     }
   }
 

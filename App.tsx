@@ -12,6 +12,7 @@ import { PlaylistsScreen } from './src/screens/PlaylistsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { MainPlayerModal } from './src/components/MainPlayerModal';
+import { audioService } from './src/services/audioService';
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -107,6 +108,9 @@ function MainApp() {
       }
     }
     checkAutoUpdates();
+    return () => {
+      audioService.stop();
+    };
   }, []);
 
   // Em dispositivos Android com barra de 3 botões (Home, Voltar, Recentes) ou gestos,
