@@ -15,18 +15,25 @@ import { Track } from '../types';
 
 interface AddToPlaylistModalProps {
   visible: boolean;
-  track: Track | null;
+  track?: Track | null;
+  tracks?: Track[] | null;
+  albumTitle?: string;
   onClose: () => void;
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   visible,
   track,
+  tracks,
+  albumTitle,
   onClose,
 }) => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const isMultiTracks = Array.isArray(tracks) && tracks.length > 0;
+  const targetTracks: Track[] = isMultiTracks ? tracks : track ? [track] : [];
 
   const loadPlaylists = async () => {
     const list = await PlaylistManager.getPlaylists();
@@ -41,15 +48,29 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
     }
   }, [visible]);
 
-  if (!track) return null;
+  if (targetTracks.length === 0) return null;
 
   const handleAddToPlaylist = async (playlist: Playlist) => {
-    const added = await PlaylistManager.addTrackToPlaylist(playlist.id, track);
-    if (added) {
-      Alert.alert('Sucesso', `Música adicionada à playlist "${playlist.name}"!`);
-      onClose();
-    } else {
-      Alert.alert('Aviso', 'Esta música já está presente nesta playlist.');
+    if (isMultiTracks) {
+      const res = await PlaylistManager.addTracksToPlaylist(playlist.id, targetTracks);
+      if (res.addedCount > 0) {
+        const dupMsg = res.duplicateCount > 0 ? ` (${res.duplicateCount} já estavam na playlist)` : '';
+        Alert.alert(
+          'Álbum Adicionado',
+          `${res.addedCount} músicas do álbum foram adicionadas à playlist "${playlist.name}"!${dupMsg}`
+        );
+        onClose();
+      } else {
+        Alert.alert('Aviso', 'Todas as faixas deste álbum já estão salvas nesta playlist.');
+      }
+    } else if (track) {
+      const added = await PlaylistManager.addTrackToPlaylist(playlist.id, track);
+      if (added) {
+        Alert.alert('Sucesso', `Música adicionada à playlist "${playlist.name}"!`);
+        onClose();
+      } else {
+        Alert.alert('Aviso', 'Esta música já está presente nesta playlist.');
+      }
     }
   };
 
@@ -59,10 +80,23 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
       return;
     }
     const created = await PlaylistManager.createPlaylist(newPlaylistName.trim());
-    await PlaylistManager.addTrackToPlaylist(created.id, track);
-    Alert.alert('Sucesso', `Playlist "${created.name}" criada e música adicionada!`);
+    if (isMultiTracks) {
+      await PlaylistManager.addTracksToPlaylist(created.id, targetTracks);
+      Alert.alert(
+        'Playlist Criada',
+        `A playlist "${created.name}" foi criada com ${targetTracks.length} faixas do álbum!`
+      );
+    } else if (track) {
+      await PlaylistManager.addTrackToPlaylist(created.id, track);
+      Alert.alert('Sucesso', `Playlist "${created.name}" criada e música adicionada!`);
+    }
     onClose();
   };
+
+  const titleText = isMultiTracks ? 'Adicionar Álbum à Playlist' : 'Adicionar à Playlist';
+  const subtitleText = isMultiTracks
+    ? `${albumTitle ? `${albumTitle} • ` : ''}${targetTracks.length} faixas`
+    : `${track?.title} • ${track?.artist}`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -70,9 +104,9 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
         <View style={styles.dialog}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Adicionar à Playlist</Text>
+              <Text style={styles.title}>{titleText}</Text>
               <Text style={styles.trackSubtitle} numberOfLines={1}>
-                {track.title} • {track.artist}
+                {subtitleText}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -83,7 +117,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
           {isCreating ? (
             <View style={styles.createBox}>
               <TextInput
-                placeholder="Nome da nova playlist (ex: Treino TKST)"
+                placeholder={isMultiTracks ? 'Nome da nova playlist (ex: Álbum Favorito)' : 'Nome da nova playlist (ex: Treino TKST)'}
                 placeholderTextColor="#707078"
                 style={styles.input}
                 value={newPlaylistName}
@@ -111,7 +145,9 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
               onPress={() => setIsCreating(true)}
             >
               <Ionicons name="add-circle" size={22} color="#00E5FF" />
-              <Text style={styles.newPlaylistText}>Criar Nova Playlist</Text>
+              <Text style={styles.newPlaylistText}>
+                {isMultiTracks ? 'Criar Playlist com este Álbum' : 'Criar Nova Playlist'}
+              </Text>
             </TouchableOpacity>
           )}
 
@@ -121,7 +157,12 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
             style={{ maxHeight: 260 }}
             contentContainerStyle={{ paddingVertical: 6 }}
             renderItem={({ item }) => {
-              const alreadyIn = item.tracks.some((t) => t.id === track.id);
+              const alreadyIn = isMultiTracks
+                ? targetTracks.every((t) => item.tracks.some((pt) => pt.id === t.id))
+                : track
+                ? item.tracks.some((t) => t.id === track.id)
+                : false;
+
               return (
                 <TouchableOpacity
                   style={styles.playlistRow}

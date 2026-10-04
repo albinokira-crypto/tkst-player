@@ -83,6 +83,49 @@ export class PlaylistManager {
     return true;
   }
 
+  /**
+   * Adiciona um lote de faixas (álbum completo) a uma playlist, ignorando faixas já existentes
+   */
+  public static async addTracksToPlaylist(
+    playlistId: string,
+    tracks: Track[]
+  ): Promise<{ addedCount: number; duplicateCount: number }> {
+    const playlists = await this.getPlaylists();
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (!playlist) return { addedCount: 0, duplicateCount: 0 };
+
+    const existingIds = new Set(playlist.tracks.map((t) => t.id));
+    let addedCount = 0;
+    let duplicateCount = 0;
+
+    for (const track of tracks) {
+      if (existingIds.has(track.id)) {
+        duplicateCount++;
+        continue;
+      }
+
+      const cleanTrack: Track = { ...track };
+      if (
+        cleanTrack.audioUrl &&
+        (cleanTrack.audioUrl.includes('sndcdn.com') ||
+          cleanTrack.audioUrl.includes('Signature=') ||
+          cleanTrack.audioUrl.includes('api-v2.soundcloud.com/media'))
+      ) {
+        cleanTrack.audioUrl = '';
+      }
+
+      playlist.tracks.push(cleanTrack);
+      existingIds.add(track.id);
+      addedCount++;
+    }
+
+    if (addedCount > 0) {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
+    }
+
+    return { addedCount, duplicateCount };
+  }
+
   public static async removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<void> {
     const playlists = await this.getPlaylists();
     const playlist = playlists.find((p) => p.id === playlistId);

@@ -67,9 +67,10 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStepText, setDownloadStepText] = useState<string>('');
 
-  // Modal para playlist
+  // Modal para playlist (faixa individual ou álbum completo)
   const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<Track | null>(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState<boolean>(false);
+  const [isAlbumPlaylistModalOpen, setIsAlbumPlaylistModalOpen] = useState<boolean>(false);
 
   // Monitora reprodução global em tempo real
   const [playback, setPlayback] = useState<PlaybackState>(audioService.getState());
@@ -99,15 +100,24 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
     }
   }, [isDownloading, spinAnim]);
 
-  // Intercepta o botão voltar nativo do Android para retornar à lista/tela anterior
+  // Intercepta o botão voltar nativo do Android para fechar modais ou retornar à tela anterior
   useEffect(() => {
     const handleBackPress = () => {
+      if (isAlbumPlaylistModalOpen) {
+        setIsAlbumPlaylistModalOpen(false);
+        return true;
+      }
+      if (isPlaylistModalOpen) {
+        setIsPlaylistModalOpen(false);
+        setSelectedTrackForPlaylist(null);
+        return true;
+      }
       onBack();
       return true;
     };
     const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
     return () => backSub.remove();
-  }, [onBack]);
+  }, [isAlbumPlaylistModalOpen, isPlaylistModalOpen, onBack]);
 
   // Carrega informações e faixas do álbum
   const loadAlbumData = useCallback(async () => {
@@ -365,7 +375,13 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
             {album?.title || 'Detalhes do Álbum'}
           </Text>
 
-          <View style={{ width: 40 }} />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setIsAlbumPlaylistModalOpen(true)}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          >
+            <Ionicons name="bookmark-outline" size={20} color="#00E5FF" />
+          </TouchableOpacity>
         </View>
 
         {loading && !album ? (
@@ -516,6 +532,18 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
                     </TouchableOpacity>
                   </View>
 
+                  {/* Botão de Adicionar Álbum Completo à Playlist */}
+                  <TouchableOpacity
+                    style={styles.playlistFullAlbumBtn}
+                    onPress={() => setIsAlbumPlaylistModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="bookmark-outline" size={18} color="#00E5FF" />
+                    <Text style={styles.playlistFullAlbumBtnText}>
+                      Adicionar Álbum à Playlist
+                    </Text>
+                  </TouchableOpacity>
+
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Faixas do Disco</Text>
                     <Text style={styles.sectionSubtitle}>
@@ -528,7 +556,7 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
           />
         )}
 
-        {/* Modal de Adicionar a Playlist */}
+        {/* Modal de Adicionar Faixa Individual a Playlist */}
         <AddToPlaylistModal
           visible={isPlaylistModalOpen}
           track={selectedTrackForPlaylist}
@@ -536,6 +564,14 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
             setIsPlaylistModalOpen(false);
             setSelectedTrackForPlaylist(null);
           }}
+        />
+
+        {/* Modal de Adicionar Álbum Completo a Playlist */}
+        <AddToPlaylistModal
+          visible={isAlbumPlaylistModalOpen}
+          tracks={tracks}
+          albumTitle={album?.title}
+          onClose={() => setIsAlbumPlaylistModalOpen(false)}
         />
       </View>
     </TKSTBackground>
@@ -788,6 +824,30 @@ const styles = StyleSheet.create({
   secondaryButtonTextDownloaded: {
     color: '#00E5FF',
     fontWeight: '700',
+  },
+  playlistFullAlbumBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#161622',
+    height: 44,
+    borderRadius: 22,
+    marginTop: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#00E5FF45',
+    gap: 8,
+    shadowColor: '#00E5FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  playlistFullAlbumBtnText: {
+    color: '#00E5FF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   sectionHeader: {
     width: '100%',
