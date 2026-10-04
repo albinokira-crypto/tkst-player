@@ -105,6 +105,12 @@ const TrackRowItem: React.FC<TrackRowProps> = React.memo(
             <Text style={styles.rowDuration}>
               {StreamResolver.formatDuration(track.durationSeconds)}
             </Text>
+            {track.id.startsWith('yt_') && (
+              <Text style={[styles.providerBadge, { color: '#FF3B30', borderColor: '#FF3B30' }]}>YouTube Music</Text>
+            )}
+            {track.id.startsWith('sc_') && (
+              <Text style={[styles.providerBadge, { color: '#FF9500', borderColor: '#FF9500' }]}>SoundCloud</Text>
+            )}
             {track.id.startsWith('dz_') && (
               <Text style={styles.providerBadge}>Deezer</Text>
             )}
@@ -284,14 +290,14 @@ export const SearchScreen = () => {
       <View style={styles.container}>
         {/* Barra de Pesquisa */}
         <View style={styles.header}>
-          <Text style={styles.title}>Busca Global</Text>
-          <Text style={styles.subtitle}>Encontre qualquer artista, banda ou música mundial</Text>
+          <Text style={styles.title}>Busca Global TKST</Text>
+          <Text style={styles.subtitle}>YouTube Music • SoundCloud • Músicas Completas</Text>
         </View>
 
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#00E5FF" />
           <TextInput
-            placeholder="Qualquer artista, banda, música ou álbum..."
+            placeholder="YouTube Music, SoundCloud, artista ou música..."
             placeholderTextColor="#707078"
             style={styles.input}
             value={query}

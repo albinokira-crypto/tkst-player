@@ -75,44 +75,24 @@ module.exports = async (req, res) => {
     try {
       const cleanQ = query.trim();
 
-      // Prioridade 1: JioSaavn (Áudio completo em alta fidelidade 160kbps AAC)
-      try {
-        const saavnUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=5&p=1&q=${encodeURIComponent(cleanQ)}&_marker=0&ctx=web6dot0`;
-        const sRes = await fetch(saavnUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (sRes.ok) {
-          const sData = await sRes.json();
-          if (sData.results && sData.results.length) {
-            for (const item of sData.results) {
-              const dur = parseInt(item.duration, 10);
-              if (dur > 60 && item.encrypted_media_url) {
-                const streamUrl = decryptSaavn(item.encrypted_media_url);
-                if (streamUrl) {
-                  return res.status(200).json({
-                    id: `saavn_${item.id}`,
-                    title: item.song || item.title,
-                    artist: item.singers || item.primary_artists,
-                    streamUrl,
-                    duration: dur,
-                    provider: 'saavn',
-                    isFullTrack: true,
-                  });
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Saavn resolve error on vercel:', e);
-      }
+      const BLACKLIST_REGEX =
+        /(karaoke|instrumental|tribute|originally performed|backing track|karaokê|ringtone|toque de celular|sem voz|minus one|play along|playback|versão instrumental|zzang)/i;
 
-      // Prioridade 2: SoundCloud (Progressive MP3 de músicas completas)
+      // Prioridade 1: SoundCloud (Músicas reais com vocais, áudio completo progressivo em alta qualidade)
       try {
         const scClientId = await getSoundCloudClientId();
-        const scUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(cleanQ)}&client_id=${scClientId}&limit=10`;
+        const scUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(cleanQ)}&client_id=${scClientId}&limit=12`;
         const scRes = await fetch(scUrl);
         if (scRes.ok) {
           const scData = await scRes.json();
-          const fullTracks = (scData.collection || []).filter((t) => t.duration > 75000);
+          const fullTracks = (scData.collection || []).filter((t) => {
+            if (!t.duration || t.duration < 60000) return false;
+            if (BLACKLIST_REGEX.test(t.title || '') || BLACKLIST_REGEX.test(t.user?.username || '')) {
+              return false;
+            }
+            return true;
+          });
+
           for (const track of fullTracks) {
             const progressive = track.media?.transcodings?.find((tr) => tr.format?.protocol === 'progressive');
             if (progressive) {
@@ -136,6 +116,41 @@ module.exports = async (req, res) => {
         }
       } catch (e) {
         console.warn('SoundCloud resolve error on vercel:', e);
+      }
+
+      // Prioridade 2: JioSaavn (Apenas músicas reais verificadas, sem karaokê)
+      try {
+        const saavnUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=6&p=1&q=${encodeURIComponent(cleanQ)}&_marker=0&ctx=web6dot0`;
+        const sRes = await fetch(saavnUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.results && sData.results.length) {
+            for (const item of sData.results) {
+              const dur = parseInt(item.duration, 10);
+              const sTitle = item.song || item.title || '';
+              const singers = item.singers || item.primary_artists || '';
+              if (BLACKLIST_REGEX.test(sTitle) || BLACKLIST_REGEX.test(singers)) {
+                continue;
+              }
+              if (dur > 60 && item.encrypted_media_url) {
+                const streamUrl = decryptSaavn(item.encrypted_media_url);
+                if (streamUrl) {
+                  return res.status(200).json({
+                    id: `saavn_${item.id}`,
+                    title: sTitle,
+                    artist: singers,
+                    streamUrl,
+                    duration: dur,
+                    provider: 'saavn',
+                    isFullTrack: true,
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Saavn resolve error on vercel:', e);
       }
 
       // Prioridade 3: Fallback Deezer

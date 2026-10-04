@@ -113,7 +113,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Tudo Atualizado!',
-          `Você já está executando a versão mais recente do TKST Player!\n\n• Versão: v1.3.0\n• Motor de Áudio: Músicas Completas (Global)\n• Pacote Ativo: ${activeId}\n• Runtime: ${Updates.runtimeVersion || '1.1.0'}`
+          `Você já está executando a versão mais recente do TKST Player!\n\n• Versão: v1.3.1\n• Motores: YouTube Music + SoundCloud\n• Filtro Ativo: Sem Versões Instrumentais\n• Pacote Ativo: ${activeId}\n• Runtime: ${Updates.runtimeVersion || '1.1.0'}`
         );
       }
     } catch (err: any) {
@@ -170,7 +170,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Ionicons name="shield" size={20} color="#00E5FF" />
-                <Text style={styles.statNumber}>v1.3.0</Text>
+                <Text style={styles.statNumber}>v1.3.1</Text>
                 <Text style={styles.statLabel}>Versão do App</Text>
               </View>
             </View>
@@ -255,13 +255,13 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.3.0 (Músicas Completas)</Text>
+                <Text style={styles.versionValue}>v1.3.1 (YouTube & SoundCloud)</Text>
               </View>
             </View>
 
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Motor de Áudio:</Text>
-              <Text style={styles.versionSubValue}>Acervo Global (Músicas Inteiras)</Text>
+              <Text style={styles.versionSubValue}>YouTube + SoundCloud (Vocais Reais)</Text>
             </View>
 
             <View style={styles.versionRow}>
