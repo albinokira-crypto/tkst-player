@@ -2,6 +2,11 @@
   "buildCommand": "echo Vercel Ready",
   "outputDirectory": "public",
   "cleanUrls": true,
+  "functions": {
+    "api/*.js": {
+      "includeFiles": "updates/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
