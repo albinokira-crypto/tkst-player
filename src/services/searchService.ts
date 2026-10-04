@@ -577,11 +577,11 @@ export class SearchService {
               item.cover_big ||
               item.cover_medium ||
               'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
-            const releaseYear = item.release_date ? item.release_date.split('-')[0] : '';
+            const releaseYear = item.release_date ? String(item.release_date).split('-')[0] : '';
 
             albums.push({
               id: `deezer_${item.id}`,
-              title: item.title,
+              title: item.title || 'Álbum',
               artist: item.artist?.name || 'Artista',
               artistId: item.artist?.id ? `deezer_${item.artist.id}` : undefined,
               artworkUrl,
@@ -608,11 +608,11 @@ export class SearchService {
             const artworkUrl = rawCover
               ? rawCover.replace('100x100bb.jpg', '600x600bb.jpg')
               : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
-            const releaseYear = item.releaseDate ? item.releaseDate.split('-')[0] : '';
+            const releaseYear = item.releaseDate ? String(item.releaseDate).split('-')[0] : '';
 
             albums.push({
               id: `itunes_${item.collectionId}`,
-              title: item.collectionName || item.collectionCensoredName,
+              title: item.collectionName || item.collectionCensoredName || 'Álbum',
               artist: item.artistName || 'Artista',
               artistId: item.artistId ? `itunes_${item.artistId}` : undefined,
               artworkUrl,
@@ -633,7 +633,9 @@ export class SearchService {
     // 3. Deduplicação inteligente e ordenação
     const uniqueMap = new Map<string, Album>();
     for (const alb of albums) {
-      const key = `${alb.artist.toLowerCase()} - ${alb.title.toLowerCase()}`.replace(/[^a-z0-9]/g, '');
+      const artistClean = (alb.artist || '').toLowerCase();
+      const titleClean = (alb.title || '').toLowerCase();
+      const key = `${artistClean} - ${titleClean}`.replace(/[^a-z0-9]/g, '');
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, alb);
       }

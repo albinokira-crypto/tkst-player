@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar, Text } from 'react-native';
+import { View, StyleSheet, StatusBar, Text, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +38,12 @@ class ErrorBoundary extends React.Component<
           <Text style={errorStyles.message}>
             {this.state.error?.message || 'Ocorreu um problema ao renderizar a tela.'}
           </Text>
+          <TouchableOpacity
+            style={errorStyles.retryButton}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={errorStyles.retryText}>Tentar Novamente</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -63,6 +69,18 @@ const errorStyles = StyleSheet.create({
     color: '#A0A0B0',
     fontSize: 14,
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#00E5FF',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 22,
+  },
+  retryText: {
+    color: '#0A0A0E',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 
@@ -102,6 +120,7 @@ function MainApp() {
       <StatusBar barStyle="light-content" backgroundColor="#0A0A0E" />
       <View style={styles.root}>
         <Tab.Navigator
+          backBehavior="history"
           screenOptions={({ route }) => ({
             headerShown: false,
             tabBarStyle: {

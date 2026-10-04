@@ -11,6 +11,7 @@ import {
   StatusBar,
   Platform,
   Animated,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -97,6 +98,16 @@ export const AlbumDetailsScreen: React.FC<AlbumDetailsScreenProps> = ({
       spinAnim.setValue(0);
     }
   }, [isDownloading, spinAnim]);
+
+  // Intercepta o botão voltar nativo do Android para retornar à lista/tela anterior
+  useEffect(() => {
+    const handleBackPress = () => {
+      onBack();
+      return true;
+    };
+    const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    return () => backSub.remove();
+  }, [onBack]);
 
   // Carrega informações e faixas do álbum
   const loadAlbumData = useCallback(async () => {

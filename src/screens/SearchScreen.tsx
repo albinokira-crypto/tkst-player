@@ -13,7 +13,9 @@ import {
   StatusBar,
   Platform,
   Dimensions,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchService } from '../services/searchService';
@@ -297,6 +299,41 @@ export const SearchScreen = () => {
       setPlayback(state);
     });
   }, []);
+
+  // Suporte ao botão voltar nativo do Android:
+  // Volta do álbum selecionado, fecha modal, limpa filtro de artista, volta para aba Músicas ou limpa busca antes de sair
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedAlbum) {
+          setSelectedAlbum(null);
+          return true;
+        }
+        if (isPlaylistModalOpen) {
+          setIsPlaylistModalOpen(false);
+          setSelectedTrackForPlaylist(null);
+          return true;
+        }
+        if (artistFilterName) {
+          setArtistFilterName(null);
+          executeSearch(query, 'albums', 0, false);
+          return true;
+        }
+        if (activeTab !== 'tracks') {
+          setActiveTab('tracks');
+          return true;
+        }
+        if (query.trim().length > 0) {
+          handleClear();
+          return true;
+        }
+        return false;
+      };
+
+      const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backSub.remove();
+    }, [selectedAlbum, isPlaylistModalOpen, artistFilterName, activeTab, query])
+  );
 
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -604,9 +641,9 @@ export const SearchScreen = () => {
         {/* Conteúdo Principal com base na Aba Ativa */}
         {loading && (activeTab === 'tracks' ? trackResults.length === 0 : activeTab === 'albums' ? albumResults.length === 0 : artistResults.length === 0) ? (
           activeTab === 'albums' ? (
-            <SkeletonAlbumGrid />
+            <SkeletonAlbumGrid key="skeleton-albums" />
           ) : (
-            <View style={styles.skeletonContainer}>
+            <View key="skeleton-tracks" style={styles.skeletonContainer}>
               <SkeletonTrackRow />
               <SkeletonTrackRow />
               <SkeletonTrackRow />
@@ -617,6 +654,7 @@ export const SearchScreen = () => {
         ) : activeTab === 'tracks' ? (
           /* ABA 1: MÚSICAS */
           <FlatList
+            key="flatlist-tracks"
             data={trackResults}
             keyExtractor={(item) => item.id}
             renderItem={({ item, index }) => (
@@ -667,6 +705,7 @@ export const SearchScreen = () => {
         ) : activeTab === 'albums' ? (
           /* ABA 2: ÁLBUNS OFICIAIS */
           <FlatList
+            key="flatlist-albums"
             data={albumResults}
             keyExtractor={(item) => item.id}
             numColumns={2}
@@ -700,6 +739,7 @@ export const SearchScreen = () => {
         ) : (
           /* ABA 3: ARTISTAS E BANDAS */
           <FlatList
+            key="flatlist-artists"
             data={artistResults}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}

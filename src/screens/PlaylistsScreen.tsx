@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DownloadManager } from '../services/downloadManager';
@@ -68,6 +70,38 @@ export const PlaylistsScreen = () => {
   useEffect(() => {
     loadData();
   }, [activeTab]);
+
+  // Intercepta botão voltar nativo do Android para sub-telas de playlist ou álbum baixado
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        if (selectedDownloadedAlbum) {
+          setSelectedDownloadedAlbum(null);
+          return true;
+        }
+        if (selectedPlaylist) {
+          setSelectedPlaylist(null);
+          return true;
+        }
+        if (isCreateModalOpen) {
+          setIsCreateModalOpen(false);
+          return true;
+        }
+        if (activeTab === 'downloads' && downloadSubTab === 'albums') {
+          setDownloadSubTab('tracks');
+          return true;
+        }
+        if (activeTab === 'downloads') {
+          setActiveTab('playlists');
+          return true;
+        }
+        return false;
+      };
+
+      const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backSub.remove();
+    }, [selectedDownloadedAlbum, selectedPlaylist, isCreateModalOpen, activeTab, downloadSubTab])
+  );
 
 
   const handlePlayDownloaded = (track: Track, index: number) => {

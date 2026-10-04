@@ -10,7 +10,9 @@ import {
   RefreshControl,
   StatusBar,
   Platform,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RecommendationEngine } from '../services/recommendationEngine';
@@ -52,6 +54,21 @@ export const HomeScreen = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Botão voltar nativo: fecha detalhes de álbum aberto e retorna à Home
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        if (selectedAlbum) {
+          setSelectedAlbum(null);
+          return true;
+        }
+        return false;
+      };
+      const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backSub.remove();
+    }, [selectedAlbum])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
   Platform,
+  BackHandler,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,21 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
     });
   }, []);
 
+  // Intercepta botão voltar nativo para fechar o modal do player
+  useEffect(() => {
+    if (!visible) return;
+    const handleBackPress = () => {
+      if (isAddToPlaylistOpen) {
+        setIsAddToPlaylistOpen(false);
+        return true;
+      }
+      onClose();
+      return true;
+    };
+    const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    return () => backSub.remove();
+  }, [visible, isAddToPlaylistOpen, onClose]);
+
   if (!playback.currentTrack) return null;
 
   const formatTime = (millis: number) => {
@@ -76,7 +92,18 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={() => {
+        if (isAddToPlaylistOpen) {
+          setIsAddToPlaylistOpen(false);
+        } else {
+          onClose();
+        }
+      }}
+    >
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <TKSTBackground variant="tiger" opacity={0.25}>
         <View style={[styles.container, { paddingTop: topInset + 16, paddingBottom: bottomInset }]}>
