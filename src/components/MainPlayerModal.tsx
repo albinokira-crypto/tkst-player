@@ -38,8 +38,8 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
 
   const topInset = Math.max(
     insets.top,
-    Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0,
-    28
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 38) : 0,
+    38
   );
   const bottomInset = Math.max(insets.bottom, 24);
 
@@ -79,7 +79,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <TKSTBackground variant="tiger" opacity={0.25}>
-        <View style={[styles.container, { paddingTop: topInset + 6, paddingBottom: bottomInset }]}>
+        <View style={[styles.container, { paddingTop: topInset + 16, paddingBottom: bottomInset }]}>
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.iconButton}

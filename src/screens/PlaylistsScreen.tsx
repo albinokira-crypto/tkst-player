@@ -9,8 +9,11 @@ import {
   TextInput,
   Alert,
   Modal,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DownloadManager } from '../services/downloadManager';
 import { PlaylistManager, Playlist } from '../services/playlistManager';
 import { audioService } from '../services/audioService';
@@ -18,6 +21,12 @@ import { TKSTBackground } from '../components/TKSTBackground';
 import { Track } from '../types';
 
 export const PlaylistsScreen = () => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0,
+    36
+  );
   const [activeTab, setActiveTab] = useState<'playlists' | 'downloads'>('playlists');
   const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -98,7 +107,7 @@ export const PlaylistsScreen = () => {
 
   return (
     <TKSTBackground variant="emblem" opacity={0.24}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: topInset + 14 }]}>
         <View style={styles.tabHeader}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'playlists' && styles.tabActive]}
@@ -331,7 +340,6 @@ export const PlaylistsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 54,
     paddingHorizontal: 16,
   },
   tabHeader: {

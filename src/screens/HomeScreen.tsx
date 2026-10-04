@@ -8,8 +8,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RecommendationEngine } from '../services/recommendationEngine';
 import { MusicApi } from '../services/musicApi';
 import { audioService } from '../services/audioService';
@@ -17,6 +20,12 @@ import { TKSTBackground } from '../components/TKSTBackground';
 import { Track } from '../types';
 
 export const HomeScreen = () => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0,
+    36
+  );
   const [recentTracks, setRecentTracks] = useState<Track[]>([]);
   const [recommendedTracks, setRecommendedTracks] = useState<Track[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<Track[]>([]);
@@ -61,7 +70,7 @@ export const HomeScreen = () => {
   return (
     <TKSTBackground variant="clean" opacity={0.24}>
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { paddingTop: topInset + 14 }]}
         contentContainerStyle={{ paddingBottom: 180 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5FF" />}
       >
@@ -151,7 +160,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingTop: 54,
   },
   header: {
     flexDirection: 'row',

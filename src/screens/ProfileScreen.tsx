@@ -9,14 +9,23 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import { AuthManager, UserProfile } from '../services/authManager';
 import { DownloadManager } from '../services/downloadManager';
 import { TKSTBackground } from '../components/TKSTBackground';
 
 export const ProfileScreen = () => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0,
+    36
+  );
   const [user, setUser] = useState<UserProfile | null>(null);
 
   // Modo de autenticação: 'login' ou 'signup'
@@ -192,7 +201,7 @@ export const ProfileScreen = () => {
   return (
     <TKSTBackground variant="tiger" opacity={0.25}>
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { paddingTop: topInset + 14 }]}
         contentContainerStyle={{ paddingBottom: 180 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -512,7 +521,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingTop: 50,
     paddingHorizontal: 16,
   },
   topHeader: {

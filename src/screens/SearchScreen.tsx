@@ -10,8 +10,11 @@ import {
   ActivityIndicator,
   Animated,
   Keyboard,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchService } from '../services/searchService';
 import { audioService } from '../services/audioService';
 import { StreamResolver } from '../services/streamResolver';
@@ -140,6 +143,12 @@ const TrackRowItem: React.FC<TrackRowProps> = React.memo(
 );
 
 export const SearchScreen = () => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0,
+    36
+  );
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
@@ -284,11 +293,11 @@ export const SearchScreen = () => {
 
   return (
     <TKSTBackground variant="kanji" opacity={0.25}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: topInset + 14 }]}>
         {/* Barra de Pesquisa */}
         <View style={styles.header}>
           <Text style={styles.title}>Busca Global TKST</Text>
-          <Text style={styles.subtitle}>YouTube Music • SoundCloud • Músicas Completas</Text>
+          <Text style={styles.subtitle}>YouTube Music • YouTube • Músicas Completas</Text>
         </View>
 
         <View style={styles.searchBar}>
@@ -406,7 +415,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingTop: 52,
   },
   header: {
     paddingHorizontal: 16,

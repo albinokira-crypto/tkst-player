@@ -142,7 +142,7 @@ module.exports = (req, res) => {
   // Constrói o Manifest completo e 100% aderente ao protocolo Expo Updates v1
   const manifest = {
     id: updateId,
-    createdAt: bundleCreatedAt,
+    createdAt: new Date().toISOString(),
     runtimeVersion: runtimeVersion,
     launchAsset: {
       hash: bundleMeta.hash,
