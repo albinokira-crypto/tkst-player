@@ -153,20 +153,31 @@ module.exports = async (req, res) => {
         console.warn('Saavn resolve error on vercel:', e);
       }
 
-      // Prioridade 3: Fallback Deezer
-      const dzRes = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(cleanQ)}&limit=1`);
-      const dzData = await dzRes.json();
-      if (dzData.data?.[0]?.preview) {
-        const item = dzData.data[0];
-        return res.status(200).json({
-          id: `dz_${item.id}`,
-          title: item.title,
-          artist: item.artist?.name,
-          streamUrl: item.preview,
-          duration: item.duration,
-          provider: 'deezer',
-          isFullTrack: false,
-        });
+      // Prioridade 3: Audius (Acervo completo)
+      try {
+        const hostRes = await fetch('https://api.audius.co');
+        const hostJson = await hostRes.json();
+        const host = hostJson.data?.[0] || 'https://audius-discovery-1.cultur3stake.com';
+        const audiusRes = await fetch(`${host}/v1/tracks/search?query=${encodeURIComponent(cleanQ)}&app_name=TKST_PLAYER_APP`);
+        if (audiusRes.ok) {
+          const aData = await audiusRes.json();
+          if (aData.data && aData.data.length > 0) {
+            const item = aData.data[0];
+            if (item.duration && item.duration > 60) {
+              return res.status(200).json({
+                id: `audius_${item.id}`,
+                title: item.title,
+                artist: item.user?.name || 'Artista',
+                streamUrl: `${host}/v1/tracks/${item.id}/stream?app_name=TKST_PLAYER_APP`,
+                duration: item.duration,
+                provider: 'audius',
+                isFullTrack: true,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Audius resolve error on vercel:', e);
       }
 
       return res.status(404).json({ error: 'Nenhum fluxo encontrado para a consulta' });

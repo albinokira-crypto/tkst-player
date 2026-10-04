@@ -15,7 +15,29 @@ export class PlaylistManager {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (!data) return [];
-      return JSON.parse(data);
+      const playlists: Playlist[] = JSON.parse(data);
+
+      // Sanitiza faixas salvas anteriormente com URLs assinadas do CloudFront que já expiraram
+      let needsResave = false;
+      playlists.forEach((p) => {
+        (p.tracks || []).forEach((t) => {
+          if (
+            t.audioUrl &&
+            (t.audioUrl.includes('sndcdn.com') ||
+              t.audioUrl.includes('Signature=') ||
+              t.audioUrl.includes('api-v2.soundcloud.com/media'))
+          ) {
+            t.audioUrl = '';
+            needsResave = true;
+          }
+        });
+      });
+
+      if (needsResave) {
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists)).catch(() => {});
+      }
+
+      return playlists;
     } catch (e) {
       console.error('Erro ao carregar playlists:', e);
       return [];
@@ -44,7 +66,19 @@ export class PlaylistManager {
     const alreadyExists = playlist.tracks.some((t) => t.id === track.id);
     if (alreadyExists) return false;
 
-    playlist.tracks.push(track);
+    // Limpa links CDN assinados temporários (que expiram em 30 min) para garantir que
+    // ao tocar a playlist no futuro, o áudio seja sempre resolvido de forma fresca e funcional.
+    const cleanTrack: Track = { ...track };
+    if (
+      cleanTrack.audioUrl &&
+      (cleanTrack.audioUrl.includes('sndcdn.com') ||
+        cleanTrack.audioUrl.includes('Signature=') ||
+        cleanTrack.audioUrl.includes('api-v2.soundcloud.com/media'))
+    ) {
+      cleanTrack.audioUrl = '';
+    }
+
+    playlist.tracks.push(cleanTrack);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
     return true;
   }

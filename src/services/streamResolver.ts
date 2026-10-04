@@ -7,7 +7,7 @@ const AUDIUS_FALLBACK_HOST = 'https://audius-discovery-1.cultur3stake.com';
 
 // Cache em memória para evitar requisições repetidas na mesma faixa
 const resolvedStreamCache = new Map<string, { url: string; duration?: number; timestamp: number }>();
-const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutos
+const CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutos (evita assinaturas expiradas do CloudFront)
 
 let cachedScClientId = 'dkevB9EsY4jIoSm8RfddPNUKyn6hurXF';
 let scClientTimestamp = 0;
@@ -73,45 +73,111 @@ export class StreamResolver {
     /(karaoke|instrumental|tribute|originally performed|backing track|karaokê|ringtone|toque de celular|sem voz|minus one|play along|playback|versão instrumental|zzang)/i;
 
   /**
+   * Limpa e gera variantes de termos de busca inteligentes para máxima precisão
+   */
+  public static cleanQueries(artist: string, title: string): string[] {
+    const isBogusArtist =
+      !artist ||
+      artist === 'Artista' ||
+      /^\d+:\d{2}(:\d{2})?$/.test(artist.trim()) ||
+      artist.length > 50;
+
+    let cleanT = title
+      .replace(/[\(\[](ao vivo|clipe oficial|official.*|audio oficial|video oficial|áudio oficial|vídeo oficial|lyric video|acústico|remastered|remasterizada|versão.*|dvd.*|hd|4k|preview)[\)\]]/gi, '')
+      .replace(/#\w+/g, '')
+      .trim();
+
+    const queries: string[] = [];
+
+    // Se o título já tiver o formato "Artista - Música"
+    if (cleanT.includes(' - ')) {
+      queries.push(cleanT.replace(/\s+/g, ' ').trim());
+    }
+
+    if (!isBogusArtist) {
+      if (!cleanT.toLowerCase().includes(artist.toLowerCase())) {
+        queries.push(`${artist} ${cleanT}`.replace(/\s+/g, ' ').trim());
+      } else {
+        queries.push(cleanT.replace(/\s+/g, ' ').trim());
+      }
+    } else {
+      queries.push(cleanT.replace(/\s+/g, ' ').trim());
+    }
+
+    // Tenta também removendo participações especiais (feat. / part.)
+    const noFeat = cleanT
+      .replace(/[\(\[](part\.|feat\.|ft\.)[^\)\]]+[\)\]]/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (noFeat !== cleanT && noFeat.length > 2) {
+      if (!isBogusArtist && !noFeat.toLowerCase().includes(artist.toLowerCase())) {
+        queries.push(`${artist} ${noFeat}`.trim());
+      } else {
+        queries.push(noFeat);
+      }
+    }
+
+    return [...new Set(queries.filter((q) => q.length > 1))];
+  }
+
+  /**
    * Busca stream completo no SoundCloud (Progressive MP3 de alta fidelidade e com vocais reais)
    */
   private static async resolveFromSoundCloud(artist: string, title: string): Promise<{ url: string; duration: number } | null> {
     try {
       const clientId = await this.getSoundCloudClientId();
-      const cleanTitle = title
-        .replace(/\(preview\)/gi, '')
-        .replace(/\(official.*\)/gi, '')
-        .replace(/\[official.*\]/gi, '')
-        .replace(/\(clipe.*\)/gi, '')
-        .trim();
-      const q = `${artist} ${cleanTitle}`.trim();
-      const searchUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(q)}&client_id=${clientId}&limit=12`;
+      const queries = this.cleanQueries(artist, title);
 
-      const res = await fetch(searchUrl);
-      if (!res.ok) return null;
+      for (const q of queries) {
+        const searchUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(q)}&client_id=${clientId}&limit=10`;
 
-      const data = await res.json();
-      const candidates = (data.collection || []).filter((t: any) => {
-        if (!t.duration || t.duration < 60000) return false;
-        // Rejeita estritamente se for instrumental ou karaokê
-        if (this.BLACKLIST_REGEX.test(t.title || '') || this.BLACKLIST_REGEX.test(t.user?.username || '')) {
-          return false;
-        }
-        return true;
-      });
+        const res = await fetch(searchUrl);
+        if (!res.ok) continue;
 
-      for (const track of candidates) {
-        const progressive = track.media?.transcodings?.find((tr: any) => tr.format?.protocol === 'progressive');
-        if (progressive) {
-          const sRes = await fetch(`${progressive.url}?client_id=${clientId}`);
-          if (sRes.ok) {
-            const sData = await sRes.json();
-            if (sData.url) {
-              return {
-                url: sData.url,
-                duration: Math.round(track.duration / 1000),
-              };
-            }
+        const data = await res.json();
+        const candidates = (data.collection || []).filter((t: any) => {
+          if (!t.duration || t.duration < 60000) return false;
+          // Rejeita estritamente se for instrumental ou karaokê
+          if (this.BLACKLIST_REGEX.test(t.title || '') || this.BLACKLIST_REGEX.test(t.user?.username || '')) {
+            return false;
+          }
+          return true;
+        });
+
+        for (const track of candidates) {
+          // 1. Tenta progressive MP3 direto
+          const progressive = track.media?.transcodings?.find((tr: any) => tr.format?.protocol === 'progressive');
+          if (progressive) {
+            try {
+              const sRes = await fetch(`${progressive.url}?client_id=${clientId}`);
+              if (sRes.ok) {
+                const sData = await sRes.json();
+                if (sData.url) {
+                  return {
+                    url: sData.url,
+                    duration: Math.round(track.duration / 1000),
+                  };
+                }
+              }
+            } catch {}
+          }
+
+          // 2. Tenta HLS stream (.m3u8) nativo para expo-audio
+          const hls = track.media?.transcodings?.find((tr: any) => tr.format?.protocol === 'hls');
+          if (hls) {
+            try {
+              const hRes = await fetch(`${hls.url}?client_id=${clientId}`);
+              if (hRes.ok) {
+                const hData = await hRes.json();
+                if (hData.url) {
+                  return {
+                    url: hData.url,
+                    duration: Math.round(track.duration / 1000),
+                  };
+                }
+              }
+            } catch {}
           }
         }
       }
@@ -126,33 +192,32 @@ export class StreamResolver {
    */
   private static async resolveFromSaavn(artist: string, title: string): Promise<{ url: string; duration: number } | null> {
     try {
-      const cleanTitle = title.replace(/\(preview\)/gi, '').replace(/\[preview\]/gi, '').trim();
-      const q = `${artist} ${cleanTitle}`.trim();
-      const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=6&p=1&q=${encodeURIComponent(q)}&_marker=0&ctx=web6dot0`;
+      const queries = this.cleanQueries(artist, title);
+      for (const q of queries) {
+        const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=6&p=1&q=${encodeURIComponent(q)}&_marker=0&ctx=web6dot0`;
 
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      });
-      if (!res.ok) return null;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
+        if (!res.ok) continue;
 
-      const data = await res.json();
-      if (!data.results || !data.results.length) return null;
+        const data = await res.json();
+        if (!data.results || !data.results.length) continue;
 
-      for (const item of data.results) {
-        const dur = parseInt(item.duration, 10);
-        const songTitle = item.song || item.title || '';
-        const singers = item.singers || item.primary_artists || '';
+        for (const item of data.results) {
+          const dur = parseInt(item.duration, 10);
+          const songTitle = item.song || item.title || '';
+          const singers = item.singers || item.primary_artists || '';
 
-        // Bloqueia qualquer faixa instrumental, tributo ou de estúdios de karaokê (ex: ZZang KARAOKE)
-        if (this.BLACKLIST_REGEX.test(songTitle) || this.BLACKLIST_REGEX.test(singers)) {
-          continue;
-        }
+          if (this.BLACKLIST_REGEX.test(songTitle) || this.BLACKLIST_REGEX.test(singers)) {
+            continue;
+          }
 
-        // Filtra músicas com duração completa (> 60 segundos)
-        if (dur > 60 && item.encrypted_media_url) {
-          const streamUrl = this.decryptSaavn(item.encrypted_media_url);
-          if (streamUrl) {
-            return { url: streamUrl, duration: dur };
+          if (dur > 60 && item.encrypted_media_url) {
+            const streamUrl = this.decryptSaavn(item.encrypted_media_url);
+            if (streamUrl) {
+              return { url: streamUrl, duration: dur };
+            }
           }
         }
       }
@@ -167,22 +232,24 @@ export class StreamResolver {
    */
   private static async resolveFromAudius(artist: string, title: string): Promise<{ url: string; duration: number } | null> {
     try {
-      const q = `${artist} ${title}`.trim();
+      const queries = this.cleanQueries(artist, title);
       const hostRes = await fetch('https://api.audius.co');
       const hostJson = await hostRes.json();
       const host = hostJson.data?.[0] || AUDIUS_FALLBACK_HOST;
 
-      const res = await fetch(`${host}/v1/tracks/search?query=${encodeURIComponent(q)}&app_name=${AUDIUS_APP_NAME}`);
-      if (!res.ok) return null;
+      for (const q of queries) {
+        const res = await fetch(`${host}/v1/tracks/search?query=${encodeURIComponent(q)}&app_name=${AUDIUS_APP_NAME}`);
+        if (!res.ok) continue;
 
-      const json = await res.json();
-      if (json.data && json.data.length > 0) {
-        const item = json.data[0];
-        if (item.duration && item.duration > 60) {
-          return {
-            url: `${host}/v1/tracks/${item.id}/stream?app_name=${AUDIUS_APP_NAME}`,
-            duration: item.duration,
-          };
+        const json = await res.json();
+        if (json.data && json.data.length > 0) {
+          const item = json.data[0];
+          if (item.duration && item.duration > 60) {
+            return {
+              url: `${host}/v1/tracks/${item.id}/stream?app_name=${AUDIUS_APP_NAME}`,
+              duration: item.duration,
+            };
+          }
         }
       }
     } catch {}
@@ -192,6 +259,7 @@ export class StreamResolver {
   /**
    * Resolve e valida a URL direta de áudio COMPLETO para reprodução e download.
    * Substitui automaticamente prévias curtas (30s) por streams integrais de alta qualidade.
+   * Revalida links expirados salvos em playlists para garantir reprodução imediata.
    */
   static async resolveAudioStream(track: Track): Promise<string> {
     // 1. Se a faixa já foi baixada no dispositivo, prioriza o arquivo local
@@ -208,13 +276,12 @@ export class StreamResolver {
       return cached.url;
     }
 
-    // 3. Se a faixa possui uma URL de transcodificação do SoundCloud, resolve o MP3 progressivo direto
+    // 3. Se a faixa possui uma URL de transcodificação do SoundCloud (api-v2.soundcloud.com/media)
     if (track.audioUrl && track.audioUrl.includes('api-v2.soundcloud.com/media')) {
       try {
         const clientId = await this.getSoundCloudClientId();
-        const scUrlWithClient = track.audioUrl.includes('client_id=')
-          ? track.audioUrl
-          : `${track.audioUrl}${track.audioUrl.includes('?') ? '&' : '?'}client_id=${clientId}`;
+        const cleanBase = track.audioUrl.split('?')[0];
+        const scUrlWithClient = `${cleanBase}?client_id=${clientId}`;
         const sRes = await fetch(scUrlWithClient);
         if (sRes.ok) {
           const sJson = await sRes.json();
@@ -227,9 +294,21 @@ export class StreamResolver {
       } catch (e) {
         console.warn('Erro ao resolver transcodificação SoundCloud:', e);
       }
+      // Se a URL de transcodificação expirou, limpa para resolver fresh
+      track.audioUrl = '';
     }
 
-    // 4. Se a URL atual já é uma música completa (ex: CDN do SoundCloud ou arquivo já resolvido)
+    // 4. Se a URL salva é uma URL assinada temporária (ex: CloudFront do SoundCloud com expiração)
+    // Links salvos no banco local de playlists podem ter expirado
+    if (track.audioUrl && (track.audioUrl.includes('sndcdn.com') || track.audioUrl.includes('Signature='))) {
+      const isPlayable = await this.testStreamPlayability(track.audioUrl, 2000);
+      if (!isPlayable) {
+        console.log(`[StreamResolver] URL assinada expirada para "${track.title}". Re-resolvendo fresh...`);
+        track.audioUrl = '';
+      }
+    }
+
+    // 5. Se a URL atual já é uma música completa verificada e válida
     const isShortPreview =
       !track.audioUrl ||
       track.audioUrl.includes('dzcdn.net') ||
@@ -243,7 +322,7 @@ export class StreamResolver {
 
     console.log(`[StreamResolver] Resolvendo áudio completo vocal para: "${track.artist} - ${track.title}"`);
 
-    // 5. Prioridade 1: SoundCloud (Músicas completas com vocais originais, sem versões instrumentais)
+    // 6. Prioridade 1: SoundCloud (Músicas completas com vocais originais)
     const scRes = await this.resolveFromSoundCloud(track.artist, track.title);
     if (scRes) {
       track.durationSeconds = scRes.duration;
@@ -252,7 +331,7 @@ export class StreamResolver {
       return scRes.url;
     }
 
-    // 6. Prioridade 2: JioSaavn (Apenas músicas reais verificadas, karaokê e instrumentais estritamente bloqueados)
+    // 7. Prioridade 2: JioSaavn (Apenas músicas reais verificadas, sem karaokê)
     const saavnRes = await this.resolveFromSaavn(track.artist, track.title);
     if (saavnRes) {
       track.durationSeconds = saavnRes.duration;
@@ -261,7 +340,7 @@ export class StreamResolver {
       return saavnRes.url;
     }
 
-    // 7. Prioridade 3: Audius (Acervo indie/eletrônico completo)
+    // 8. Prioridade 3: Audius (Acervo alternativo completo)
     const audiusRes = await this.resolveFromAudius(track.artist, track.title);
     if (audiusRes) {
       track.durationSeconds = audiusRes.duration;
@@ -270,7 +349,7 @@ export class StreamResolver {
       return audiusRes.url;
     }
 
-    // 8. Fallback: Se não encontrou áudio completo em nenhuma fonte, mantém o áudio original
+    // 9. Fallback final
     return track.audioUrl || '';
   }
 

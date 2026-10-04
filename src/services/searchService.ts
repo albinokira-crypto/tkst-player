@@ -93,22 +93,57 @@ export class SearchService {
           const titleRuns = flexCols[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs;
           const title = titleRuns?.map((r: any) => r.text).join('') || '';
 
-          const subtitleRuns = flexCols[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
-          let durationSec = 180;
           let artist = '';
-          for (const run of subtitleRuns) {
-            const t = run.text?.trim();
-            if (/^\d+:\d{2}$/.test(t)) {
-              const [m, s] = t.split(':').map(Number);
-              durationSec = m * 60 + s;
-            } else if (
-              t &&
-              t !== '•' &&
-              !t.includes('visualizações') &&
-              !t.includes('ouvintes') &&
-              !['Música', 'Vídeo', 'Álbum', 'Single'].includes(t)
-            ) {
-              if (!artist) artist = t;
+          let durationSec = 180;
+
+          // 1. Procura runs que sejam explicitamente categorizados como Artista
+          for (const col of flexCols) {
+            const runs = col?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+            for (const run of runs) {
+              const pageType =
+                run.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs
+                  ?.browseEndpointContextMusicConfig?.pageType;
+              if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') {
+                if (!artist) {
+                  artist = run.text?.trim() || '';
+                }
+              }
+              const t = run.text?.trim() || '';
+              if (/^\d+:\d{2}(:\d{2})?$/.test(t)) {
+                const parts = t.split(':').map(Number);
+                if (parts.length === 2) durationSec = parts[0] * 60 + parts[1];
+                if (parts.length === 3) durationSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              }
+            }
+          }
+
+          // 2. Fallback: analisa colunas secundárias ignorando badges e tempos
+          if (!artist) {
+            const subtitleRuns = flexCols[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+            for (const run of subtitleRuns) {
+              const t = run.text?.trim() || '';
+              if (
+                t &&
+                t !== '•' &&
+                t !== ',' &&
+                t !== 'e' &&
+                !/^\d+:\d{2}(:\d{2})?$/.test(t) &&
+                !t.includes('visualizações') &&
+                !t.includes('ouvintes') &&
+                !['Música', 'Vídeo', 'Álbum', 'Single', 'Playlist', 'Episódio'].includes(t) &&
+                !/^\d{4}$/.test(t)
+              ) {
+                artist = t;
+                break;
+              }
+            }
+          }
+
+          // 3. Fallback: se o título já contém "Artista - Título"
+          if (!artist && title.includes(' - ')) {
+            const parts = title.split(' - ');
+            if (parts[0] && parts[0].trim().length > 1) {
+              artist = parts[0].trim();
             }
           }
 
@@ -193,7 +228,17 @@ export class SearchService {
           const v = obj.videoRenderer;
           const title = v.title?.runs?.[0]?.text;
           const videoId = v.videoId;
-          const owner = v.ownerText?.runs?.[0]?.text || 'Artista';
+          let owner = v.ownerText?.runs?.[0]?.text || 'Artista';
+          if (owner.endsWith(' - Topic') || owner.endsWith(' - Tema')) {
+            owner = owner.replace(/ - (Topic|Tema)$/, '').trim();
+          }
+          if ((!owner || owner === 'Artista') && title && title.includes(' - ')) {
+            const parts = title.split(' - ');
+            if (parts[0] && parts[0].trim().length > 1) {
+              owner = parts[0].trim();
+            }
+          }
+
           const lengthText = v.lengthText?.simpleText || '3:30';
           const thumb =
             v.thumbnail?.thumbnails?.slice(-1)[0]?.url ||

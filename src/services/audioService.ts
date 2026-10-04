@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import {
   createAudioPlayer,
   setAudioModeAsync,
@@ -15,6 +15,7 @@ class AudioService {
   private player: AudioPlayer | null = null;
   private statusSubscription: { remove: () => void } | null = null;
   private listeners: Set<Listener> = new Set();
+  private loadingTimeout: ReturnType<typeof setTimeout> | null = null;
   private state: PlaybackState = {
     currentTrack: null,
     isPlaying: false,
@@ -70,6 +71,11 @@ class AudioService {
     this.state.currentTrack = track;
     this.notify();
 
+    if (this.loadingTimeout) {
+      clearTimeout(this.loadingTimeout);
+      this.loadingTimeout = null;
+    }
+
     try {
       if (this.statusSubscription) {
         this.statusSubscription.remove();
@@ -86,9 +92,27 @@ class AudioService {
 
       const sourceUri = await StreamResolver.resolveAudioStream(track);
 
+      if (!sourceUri || typeof sourceUri !== 'string' || sourceUri.trim().length === 0) {
+        throw new Error('Não foi possível obter o link de reprodução para esta faixa.');
+      }
+
       const player = createAudioPlayer(sourceUri, {
         updateInterval: 350,
       });
+
+      // Timeout de segurança de 12 segundos para evitar spinner infinito
+      this.loadingTimeout = setTimeout(() => {
+        if (this.state.isLoading && (!this.state.isPlaying || this.state.positionMillis === 0)) {
+          console.warn('[AudioService] Timeout ao carregar faixa:', track.title);
+          this.state.isLoading = false;
+          this.state.isBuffering = false;
+          this.notify();
+          Alert.alert(
+            'Falha no carregamento',
+            'O servidor de áudio demorou muito para responder. Tente tocar novamente.'
+          );
+        }
+      }, 12000);
 
       try {
         player.setActiveForLockScreen(
@@ -114,19 +138,43 @@ class AudioService {
 
       this.player = player;
       player.play();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao carregar áudio:', error);
+      if (this.loadingTimeout) {
+        clearTimeout(this.loadingTimeout);
+        this.loadingTimeout = null;
+      }
       this.state.isLoading = false;
       this.state.isPlaying = false;
       this.notify();
+      Alert.alert(
+        'Erro na Reprodução',
+        'Não foi possível reproduzir esta faixa no momento. Tente novamente ou escolha outra música.'
+      );
     }
   }
 
   private onPlaybackStatusUpdate = (status: AudioStatus) => {
     if (!status.isLoaded) {
+      if ((status as any).error) {
+        console.warn('[AudioService] Erro no player:', (status as any).error);
+        if (this.loadingTimeout) {
+          clearTimeout(this.loadingTimeout);
+          this.loadingTimeout = null;
+        }
+        this.state.isLoading = false;
+        this.state.isPlaying = false;
+        this.notify();
+        return;
+      }
       this.state.isLoading = true;
       this.notify();
       return;
+    }
+
+    if (this.loadingTimeout) {
+      clearTimeout(this.loadingTimeout);
+      this.loadingTimeout = null;
     }
 
     this.state.isPlaying = status.playing;
@@ -168,6 +216,11 @@ class AudioService {
       return;
     }
     if (this.state.isPlaying) {
+      if (this.loadingTimeout) {
+        clearTimeout(this.loadingTimeout);
+        this.loadingTimeout = null;
+      }
+      this.state.isLoading = false;
       this.player.pause();
     } else {
       this.player.play();

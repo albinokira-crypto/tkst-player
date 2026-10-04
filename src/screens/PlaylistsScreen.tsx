@@ -11,6 +11,7 @@ import {
   Modal,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +36,13 @@ export const PlaylistsScreen = () => {
   // Modal para criar nova playlist
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [playback, setPlayback] = useState(audioService.getState());
+
+  useEffect(() => {
+    return audioService.subscribe((state) => {
+      setPlayback(state);
+    });
+  }, []);
 
   const loadData = async () => {
     const offlineList = await DownloadManager.getDownloadedTracks();
@@ -208,26 +216,66 @@ export const PlaylistsScreen = () => {
               data={selectedPlaylist.tracks}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 180, paddingTop: 10 }}
-              renderItem={({ item, index }) => (
-                <View style={styles.trackRow}>
-                  <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-                    onPress={() => handlePlayPlaylistAll(index)}
-                  >
-                    <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.artist} numberOfLines={1}>{item.artist}</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleRemoveTrackFromPlaylist(item.id)}
-                  >
-                    <Ionicons name="close-circle-outline" size={20} color="#8E8E93" />
-                  </TouchableOpacity>
-                </View>
-              )}
+              renderItem={({ item, index }) => {
+                const isCurrent = playback.currentTrack?.id === item.id;
+                const isPlaying = isCurrent && playback.isPlaying;
+                const isLoading = isCurrent && playback.isLoading;
+
+                return (
+                  <View style={[styles.trackRow, isCurrent && { backgroundColor: 'rgba(0, 229, 255, 0.08)', borderColor: 'rgba(0, 229, 255, 0.25)', borderWidth: 1 }]}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => {
+                        if (isCurrent) {
+                          audioService.togglePlayPause();
+                        } else {
+                          handlePlayPlaylistAll(index);
+                        }
+                      }}
+                    >
+                      <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[styles.title, isCurrent && { color: '#00E5FF' }]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.artist} numberOfLines={1}>
+                          {item.artist}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {isLoading ? (
+                      <View style={{ paddingHorizontal: 12 }}>
+                        <ActivityIndicator size="small" color="#00E5FF" />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={{ paddingHorizontal: 8 }}
+                        onPress={() => {
+                          if (isCurrent) {
+                            audioService.togglePlayPause();
+                          } else {
+                            handlePlayPlaylistAll(index);
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={isPlaying ? 'pause-circle' : isCurrent ? 'play-circle' : 'play-outline'}
+                          size={28}
+                          color={isCurrent ? '#00E5FF' : '#707078'}
+                        />
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleRemoveTrackFromPlaylist(item.id)}
+                    >
+                      <Ionicons name="close-circle-outline" size={20} color="#8E8E93" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Ionicons name="musical-note-outline" size={48} color="#3A3A46" />
