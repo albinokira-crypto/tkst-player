@@ -41,7 +41,7 @@ function loadManifestData(platform) {
     bundleFullPath = path.join(process.cwd(), 'public', bundleRelative);
   }
   if (!fs.existsSync(bundleFullPath)) {
-    bundleFullPath = path.join(process.cwd(), 'api', 'bundle.hbc');
+    bundleFullPath = path.join(process.cwd(), 'api', 'bundle_data.hbc');
   }
 
   let bundleBuf = Buffer.alloc(0);
@@ -155,7 +155,7 @@ module.exports = (req, res) => {
       key: bundleMeta.key,
       fileExtension: '.bundle',
       contentType: 'application/javascript',
-      url: `${baseUrl}/api/assets?asset=${encodeURIComponent(bundleRelative)}`,
+      url: `${baseUrl}/api/bundle`,
     },
     assets: assets.map((a) => ({
       hash: a.hash,

@@ -10,6 +10,25 @@ module.exports = (req, res) => {
   // Previne Directory Traversal
   const safeAsset = assetName.replace(/^(\.\.[\/\\])+/, '').replace(/\\/g, '/');
   
+  // Se for o bundle de código JavaScript / Hermes, serve diretamente de __dirname
+  const isBundle = safeAsset.includes('.hbc') || safeAsset.includes('bundle') || safeAsset.includes('index-');
+  if (isBundle) {
+    const bundlePaths = [
+      path.join(__dirname, 'bundle_data.hbc'),
+      path.join(process.cwd(), 'api', 'bundle_data.hbc'),
+      path.join(process.cwd(), 'public', 'bundle.hbc'),
+    ];
+    for (const bp of bundlePaths) {
+      if (fs.existsSync(bp) && fs.statSync(bp).isFile()) {
+        const fileBuffer = fs.readFileSync(bp);
+        res.setHeader('content-type', 'application/javascript');
+        res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        res.setHeader('content-length', fileBuffer.length);
+        return res.status(200).send(fileBuffer);
+      }
+    }
+  }
+
   const possiblePaths = [
     path.join(process.cwd(), 'updates', safeAsset),
     path.join(process.cwd(), 'updates', 'assets', path.basename(safeAsset)),

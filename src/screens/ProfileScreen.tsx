@@ -170,7 +170,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Ionicons name="shield" size={20} color="#00E5FF" />
-                <Text style={styles.statNumber}>1.1.0</Text>
+                <Text style={styles.statNumber}>v1.3.0</Text>
                 <Text style={styles.statLabel}>Versão do App</Text>
               </View>
             </View>
