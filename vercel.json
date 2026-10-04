@@ -8,7 +8,19 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/_expo/(.*)",
+      "destination": "/_expo/$1"
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/metadata.json",
+      "destination": "/metadata.json"
+    },
+    {
+      "source": "/((?!api|_expo|assets|metadata\\.json).*)",
       "destination": "/index.html"
     }
   ]

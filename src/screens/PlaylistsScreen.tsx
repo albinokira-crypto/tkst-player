@@ -97,7 +97,7 @@ export const PlaylistsScreen = () => {
   };
 
   return (
-    <TKSTBackground variant="emblem" opacity={0.09}>
+    <TKSTBackground variant="emblem" opacity={0.24}>
       <View style={styles.container}>
         <View style={styles.tabHeader}>
           <TouchableOpacity

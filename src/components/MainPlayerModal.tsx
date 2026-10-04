@@ -67,7 +67,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <TKSTBackground variant="tiger" opacity={0.12}>
+      <TKSTBackground variant="tiger" opacity={0.25}>
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.iconButton} onPress={onClose}>

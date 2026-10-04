@@ -59,16 +59,23 @@ export const HomeScreen = () => {
   }, []);
 
   return (
-    <TKSTBackground variant="clean" opacity={0.08}>
+    <TKSTBackground variant="clean" opacity={0.24}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 180 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5FF" />}
       >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.subtitle}>Explore novos sons hoje</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Image
+            source={require('../../assets/tkst/logo-header-tkst.png')}
+            style={{ width: 46, height: 46 }}
+            resizeMode="contain"
+          />
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.subtitle}>TKST Music Portal</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.radarButton}>
           <Ionicons name="sparkles" size={20} color="#00E5FF" />

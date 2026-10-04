@@ -52,7 +52,7 @@ export const SearchScreen = () => {
   );
 
   return (
-    <TKSTBackground variant="kanji" opacity={0.08}>
+    <TKSTBackground variant="kanji" opacity={0.24}>
       <View style={styles.container}>
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color="#707078" />

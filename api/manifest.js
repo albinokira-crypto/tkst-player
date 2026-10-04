@@ -6,7 +6,10 @@ module.exports = (req, res) => {
   const runtimeVersion = req.headers['expo-runtime-version'] || '1.1.0';
 
   // Procura pelo metadata.json do bundle exportado
-  const metadataPath = path.join(process.cwd(), 'updates', 'metadata.json');
+  let metadataPath = path.join(process.cwd(), 'updates', 'metadata.json');
+  if (!fs.existsSync(metadataPath)) {
+    metadataPath = path.join(process.cwd(), 'public', 'metadata.json');
+  }
   if (!fs.existsSync(metadataPath)) {
     return res.status(200).json({ type: 'noUpdateAvailable', message: 'Nenhuma atualização disponível no momento.' });
   }
@@ -44,7 +47,7 @@ module.exports = (req, res) => {
         key: path.basename(asset.path),
         fileExtension: `.${asset.ext}`,
         contentType: asset.ext === 'png' ? 'image/png' : asset.ext === 'jpg' ? 'image/jpeg' : 'font/ttf',
-        url: `${baseUrl}/${asset.path.replace(/\\/g, '/')}.${asset.ext}`,
+        url: `${baseUrl}/${asset.path.replace(/\\/g, '/')}`,
       })),
       metadata: {},
       extra: {

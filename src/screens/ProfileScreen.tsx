@@ -1,54 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
-import { supabase } from '../services/supabaseClient';
+import { AuthManager, UserProfile } from '../services/authManager';
 import { DownloadManager } from '../services/downloadManager';
 import { TKSTBackground } from '../components/TKSTBackground';
 
 export const ProfileScreen = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [downloadCount, setDownloadCount] = useState(0);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
-    }).catch(() => {});
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+    const authSubscription = AuthManager.onAuthStateChange((currentUser) => {
+      setUser(currentUser);
     });
 
-    return () => authListener.subscription.unsubscribe();
+    DownloadManager.getDownloadedTracks().then((tracks) => {
+      setDownloadCount(tracks.length);
+    }).catch(() => {});
+
+    return () => authSubscription.unsubscribe();
   }, []);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Campos obrigatórios', 'Por favor, preencha o e-mail e a senha.');
+      Alert.alert('Campos obrigatórios', 'Por favor, preencha seu e-mail e sua senha.');
       return;
     }
     setIsLoggingIn(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (error) {
-        let msg = error.message;
-        if (msg.includes('Invalid login credentials')) {
-          msg = 'E-mail ou senha incorretos.';
-        } else if (msg.includes('Email not confirmed')) {
-          msg = 'Por favor, confirme seu e-mail antes de entrar.';
-        }
-        Alert.alert('Erro ao entrar', msg);
+      const res = await AuthManager.signIn(email, password);
+      if (res.error) {
+        Alert.alert('Erro ao entrar', res.error);
+      } else {
+        Alert.alert('Bem-vindo(a)!', `Olá, ${res.user?.name || res.user?.email}! Sessão iniciada.`);
       }
-    } catch (err: any) {
-      Alert.alert('Erro ao entrar', err.message || 'Falha de conexão.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -56,7 +48,7 @@ export const ProfileScreen = () => {
 
   const handleSignUp = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Campos obrigatórios', 'Por favor, preencha o e-mail e a senha.');
+      Alert.alert('Campos obrigatórios', 'Por favor, preencha o e-mail e uma senha para criar sua conta.');
       return;
     }
     if (password.length < 6) {
@@ -65,59 +57,31 @@ export const ProfileScreen = () => {
     }
     setIsSigningUp(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-      });
-      if (error) {
-        Alert.alert('Erro ao cadastrar', error.message);
-      } else if (data?.session) {
-        Alert.alert('Sucesso', 'Conta criada e autenticada com sucesso!');
+      const res = await AuthManager.signUp(email, password, name);
+      if (res.error) {
+        Alert.alert('Erro ao cadastrar', res.error);
       } else {
-        Alert.alert('Sucesso', 'Verifique seu e-mail para confirmar a conta.');
+        Alert.alert('Conta Criada!', `Bem-vindo(a) ao TKST Player, ${res.user?.name}! Sua conta foi criada com sucesso.`);
+        setName('');
+        setEmail('');
+        setPassword('');
       }
-    } catch (err: any) {
-      Alert.alert('Erro ao cadastrar', err.message || 'Falha de conexão.');
     } finally {
       setIsSigningUp(false);
     }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const handleCloudBackup = async () => {
-    if (!user) {
-      Alert.alert('Atenção', 'Faça login antes de sincronizar seu backup.');
-      return;
-    }
-    setIsSyncing(true);
-    try {
-      const tracks = await DownloadManager.getDownloadedTracks();
-      const payload = {
-        user_id: user.id,
-        synced_at: new Date().toISOString(),
-        tracks_metadata: tracks.map((t) => ({
-          id: t.id,
-          title: t.title,
-          artist: t.artist,
-          artworkUrl: t.artworkUrl,
-          audioUrl: t.audioUrl,
-        })),
-      };
-
-      const { error } = await supabase
-        .from('user_backups')
-        .upsert(payload, { onConflict: 'user_id' });
-
-      if (error) throw error;
-      Alert.alert('Backup Concluído', `${tracks.length} faixas sincronizadas no seu cofre na nuvem.`);
-    } catch (err: any) {
-      Alert.alert('Erro no Backup', err.message || 'Falha ao sincronizar.');
-    } finally {
-      setIsSyncing(false);
-    }
+    Alert.alert('Encerrar Sessão', 'Deseja realmente sair da sua conta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await AuthManager.signOut();
+        },
+      },
+    ]);
   };
 
   const handleCheckUpdates = async () => {
@@ -153,113 +117,143 @@ export const ProfileScreen = () => {
   };
 
   return (
-    <TKSTBackground variant="tiger" opacity={0.09}>
+    <TKSTBackground variant="tiger" opacity={0.25}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 180 }}
         keyboardShouldPersistTaps="handled"
       >
-      <Text style={styles.heading}>Perfil & Backup</Text>
+        {/* Top Header com Marca TKST */}
+        <View style={styles.topHeader}>
+          <Image
+            source={require('../../assets/tkst/logo-header-tkst.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.heading}>Perfil & Conta</Text>
+        </View>
 
-      {user ? (
-        <View style={styles.card}>
-          <View style={styles.userRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{user.email?.[0]?.toUpperCase() || 'U'}</Text>
+        {user ? (
+          <View style={styles.card}>
+            <View style={styles.userRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {(user.name || user.email)?.[0]?.toUpperCase() || 'T'}
+                </Text>
+              </View>
+              <View style={{ marginLeft: 14, flex: 1 }}>
+                <Text style={styles.userName}>{user.name || 'Guerreiro TKST'}</Text>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                <View style={styles.badgeRow}>
+                  <Ionicons name="shield-checkmark" size={14} color="#00E5FF" />
+                  <Text style={styles.userBadge}>{user.role || 'Membro Oficial TKST'}</Text>
+                </View>
+              </View>
             </View>
-            <View style={{ marginLeft: 14 }}>
-              <Text style={styles.userEmail}>{user.email}</Text>
-              <Text style={styles.userBadge}>Assinante TKST Cloud</Text>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statBox}>
+                <Ionicons name="musical-notes" size={20} color="#00E5FF" />
+                <Text style={styles.statNumber}>{downloadCount}</Text>
+                <Text style={styles.statLabel}>Músicas Offline</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Ionicons name="shield" size={20} color="#00E5FF" />
+                <Text style={styles.statNumber}>1.1.0</Text>
+                <Text style={styles.statLabel}>Versão do App</Text>
+              </View>
             </View>
+
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={18} color="#FF453A" />
+              <Text style={styles.logoutText}>Encerrar Sessão</Text>
+            </TouchableOpacity>
           </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.loginTitle}>Acesse sua conta TKST</Text>
+            <Text style={styles.loginSubtitle}>
+              Crie uma conta para salvar suas preferências e identificar seu perfil no app.
+            </Text>
 
+            <TextInput
+              placeholder="Seu Nome ou Apelido"
+              placeholderTextColor="#707078"
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+            />
+            <TextInput
+              placeholder="Seu E-mail"
+              placeholderTextColor="#707078"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              placeholder="Sua Senha (mínimo 6 caracteres)"
+              placeholderTextColor="#707078"
+              style={styles.input}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLogin}
+              disabled={isLoggingIn || isSigningUp}
+            >
+              {isLoggingIn ? (
+                <ActivityIndicator color="#08080A" />
+              ) : (
+                <Text style={styles.loginButtonText}>Entrar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.signupButton}
+              onPress={handleSignUp}
+              disabled={isLoggingIn || isSigningUp}
+            >
+              {isSigningUp ? (
+                <ActivityIndicator color="#00E5FF" />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="person-add-outline" size={18} color="#00E5FF" />
+                  <Text style={styles.signupButtonText}>Criar Nova Conta</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={[styles.card, { marginTop: 18 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="cloud-download-outline" size={20} color="#00E5FF" />
+            <Text style={[styles.loginTitle, { marginBottom: 0, marginLeft: 8 }]}>Atualizações Automáticas (OTA)</Text>
+          </View>
+          <Text style={styles.updateInfoText}>
+            O TKST Player recebe melhorias e correções silenciosamente pela Vercel e GitHub sem necessidade de reinstalar o APK.
+          </Text>
           <TouchableOpacity
-            style={styles.backupButton}
-            onPress={handleCloudBackup}
-            disabled={isSyncing}
+            style={styles.updateButton}
+            onPress={handleCheckUpdates}
+            disabled={isCheckingUpdates}
           >
-            {isSyncing ? (
-              <ActivityIndicator color="#08080A" />
+            {isCheckingUpdates ? (
+              <ActivityIndicator color="#00E5FF" />
             ) : (
               <>
-                <Ionicons name="cloud-upload" size={20} color="#08080A" />
-                <Text style={styles.backupButtonText}>Sincronizar Backup na Nuvem</Text>
+                <Ionicons name="sync" size={16} color="#00E5FF" />
+                <Text style={styles.updateButtonText}>Verificar Atualizações na Vercel</Text>
               </>
             )}
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Encerrar Sessão</Text>
-          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.loginTitle}>Acesse sua conta</Text>
-          <TextInput
-            placeholder="Seu E-mail"
-            placeholderTextColor="#707078"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-          />
-          <TextInput
-            placeholder="Sua Senha"
-            placeholderTextColor="#707078"
-            style={styles.input}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleLogin}
-            disabled={isLoggingIn || isSigningUp}
-          >
-            {isLoggingIn ? (
-              <ActivityIndicator color="#08080A" />
-            ) : (
-              <Text style={styles.loginButtonText}>Entrar</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.signupButton}
-            onPress={handleSignUp}
-            disabled={isLoggingIn || isSigningUp}
-          >
-            {isSigningUp ? (
-              <ActivityIndicator color="#8E8E93" />
-            ) : (
-              <Text style={styles.signupButtonText}>Criar Nova Conta</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={[styles.card, { marginTop: 18 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <Ionicons name="cloud-download-outline" size={20} color="#00E5FF" />
-          <Text style={[styles.loginTitle, { marginBottom: 0, marginLeft: 8 }]}>Atualizações Automáticas (OTA)</Text>
-        </View>
-        <Text style={styles.updateInfoText}>
-          O TKST Player recebe melhorias e correções silenciosamente pela nuvem sem necessidade de reinstalar o APK.
-        </Text>
-        <TouchableOpacity
-          style={styles.updateButton}
-          onPress={handleCheckUpdates}
-          disabled={isCheckingUpdates}
-        >
-          {isCheckingUpdates ? (
-            <ActivityIndicator color="#00E5FF" />
-          ) : (
-            <>
-              <Ionicons name="sync" size={16} color="#00E5FF" />
-              <Text style={styles.updateButtonText}>Verificar Atualizações</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
     </TKSTBackground>
   );
 };
@@ -268,108 +262,161 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingTop: 54,
+    paddingTop: 50,
     paddingHorizontal: 16,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
   },
   heading: {
     color: '#FFFFFF',
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
-    marginBottom: 24,
   },
   card: {
-    backgroundColor: '#161620',
-    borderRadius: 16,
+    backgroundColor: '#12121AEE',
+    borderRadius: 18,
     padding: 20,
+    borderWidth: 1,
+    borderColor: '#242436',
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#00E5FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: '#08080A',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
   },
-  userEmail: {
+  userName: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  userEmail: {
+    color: '#A0A0B0',
+    fontSize: 14,
+    marginTop: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   userBadge: {
     color: '#00E5FF',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#181824',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#262638',
+  },
+  statNumber: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  statLabel: {
+    color: '#707078',
+    fontSize: 11,
     marginTop: 2,
   },
-  backupButton: {
+  logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00E5FF',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    gap: 6,
     marginTop: 8,
-  },
-  backupButtonText: {
-    color: '#08080A',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  logoutButton: {
-    marginTop: 14,
-    alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    backgroundColor: '#FF453A15',
+    borderRadius: 10,
   },
   logoutText: {
     color: '#FF453A',
     fontSize: 14,
+    fontWeight: '600',
   },
   loginTitle: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+    marginBottom: 6,
+  },
+  loginSubtitle: {
+    color: '#8E8E93',
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#20202C',
-    borderRadius: 10,
+    backgroundColor: '#1E1E2C',
+    borderRadius: 12,
     color: '#FFFFFF',
-    height: 48,
+    height: 50,
     paddingHorizontal: 14,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A3C',
+    fontSize: 15,
   },
   loginButton: {
     backgroundColor: '#00E5FF',
-    borderRadius: 10,
-    height: 48,
+    borderRadius: 12,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   loginButtonText: {
     color: '#08080A',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 16,
   },
   signupButton: {
     alignItems: 'center',
     justifyContent: 'center',
     height: 48,
-    marginTop: 6,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#00E5FF40',
+    borderRadius: 12,
+    backgroundColor: '#00E5FF10',
   },
   signupButtonText: {
-    color: '#8E8E93',
-    fontSize: 14,
+    color: '#00E5FF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   updateInfoText: {
     color: '#A0A0B0',
@@ -383,8 +430,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderColor: '#00E5FF',
     borderWidth: 1,
-    borderRadius: 10,
-    height: 44,
+    borderRadius: 12,
+    height: 46,
     gap: 8,
   },
   updateButtonText: {
