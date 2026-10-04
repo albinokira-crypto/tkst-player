@@ -18,7 +18,10 @@ function toUUID(str) {
 }
 
 function loadManifestData(platform) {
-  let metadataPath = path.join(process.cwd(), 'updates', 'metadata.json');
+  let metadataPath = path.join(__dirname, 'metadata.json');
+  if (!fs.existsSync(metadataPath)) {
+    metadataPath = path.join(process.cwd(), 'updates', 'metadata.json');
+  }
   if (!fs.existsSync(metadataPath)) {
     metadataPath = path.join(process.cwd(), 'public', 'metadata.json');
   }
@@ -31,12 +34,15 @@ function loadManifestData(platform) {
   if (!platformData) return null;
 
   const bundleRelative = platformData.bundle.replace(/\\/g, '/');
-  let bundleFullPath = path.join(process.cwd(), 'updates', bundleRelative);
-  if (!fs.existsSync(bundleFullPath)) {
-    bundleFullPath = path.join(process.cwd(), 'public', bundleRelative);
-  }
+  let bundleFullPath = path.join(__dirname, 'bundle_data.hbc');
   if (!fs.existsSync(bundleFullPath)) {
     bundleFullPath = path.join(process.cwd(), 'api', 'bundle_data.hbc');
+  }
+  if (!fs.existsSync(bundleFullPath)) {
+    bundleFullPath = path.join(process.cwd(), 'updates', bundleRelative);
+  }
+  if (!fs.existsSync(bundleFullPath)) {
+    bundleFullPath = path.join(process.cwd(), 'public', bundleRelative);
   }
 
   let bundleBuf = Buffer.alloc(0);
@@ -163,7 +169,7 @@ module.exports = (req, res) => {
       expoClient: {
         name: 'TKST Player',
         slug: 'tkst-player',
-        version: '1.6.0',
+        version: '1.7.0',
       },
     },
   };
