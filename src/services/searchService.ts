@@ -4,11 +4,8 @@ export interface SearchResult {
   tracks: Track[];
   hasMore: boolean;
   total?: number;
-  provider: 'youtube' | 'soundcloud' | 'deezer' | 'itunes' | 'audius' | 'mixed';
+  provider: 'youtube' | 'soundcloud' | 'itunes' | 'mixed';
 }
-
-const AUDIUS_APP_NAME = 'TKST_PLAYER_APP';
-const AUDIUS_FALLBACK_HOST = 'https://audius-discovery-1.cultur3stake.com';
 
 // Expressão regular rigorosa para rejeitar faixas instrumentais, karaokê ou sem voz
 const BLACKLIST_REGEX =
@@ -53,8 +50,8 @@ export class SearchService {
   }
 
   /**
-   * Motor Primário: YouTube Music (Innertube WEB_REMIX)
-   * Encontra qualquer artista, banda ou música oficial do planeta com metadados reais
+   * Motor Primário 1: YouTube Music (Innertube WEB_REMIX)
+   * Catálogo oficial de músicas, álbuns e lançamentos de estúdio
    */
   private static async searchYouTubeMusic(query: string, limit = 18): Promise<Track[]> {
     try {
@@ -129,14 +126,14 @@ export class SearchService {
 
           // Filtra faixas com vocais reais e bloqueia karaokê/instrumental
           if (title && videoId && !BLACKLIST_REGEX.test(title) && !BLACKLIST_REGEX.test(artist)) {
-            if (!tracks.some((t) => t.id === `yt_${videoId}`)) {
+            if (!tracks.some((t) => t.id === `ytm_${videoId}` || t.id === `yt_${videoId}`)) {
               tracks.push({
-                id: `yt_${videoId}`,
+                id: `ytm_${videoId}`,
                 title,
                 artist: artist || 'Artista',
                 album: 'YouTube Music',
                 artworkUrl: thumb,
-                audioUrl: '', // Resolvido dinamicamente pelo StreamResolver para stream completo sem preview
+                audioUrl: '', // Resolvido dinamicamente pelo StreamResolver
                 durationSeconds: durationSec,
                 genre: 'YouTube Music',
               });
@@ -158,7 +155,90 @@ export class SearchService {
   }
 
   /**
-   * Motor Primário Complementar: SoundCloud (Áudios completos com vocais e MP3 progressivo)
+   * Motor Primário 2: YouTube Global (Innertube WEB)
+   * Encontra clipes oficiais, músicas gravadas, acústicos e áudios originais
+   */
+  private static async searchYouTube(query: string, limit = 18): Promise<Track[]> {
+    try {
+      const res = await fetch(
+        'https://www.youtube.com/youtubei/v1/search?alt=json&key=AIzaSyAO_FJ2SlqsmMV4Bg8TScxbUX9svqfWU',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: '2.20231214.00.00',
+                hl: 'pt',
+                gl: 'BR',
+              },
+            },
+            query: `${query} official`,
+          }),
+        }
+      );
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      const tracks: Track[] = [];
+
+      const walk = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return;
+        if (obj.videoRenderer) {
+          const v = obj.videoRenderer;
+          const title = v.title?.runs?.[0]?.text;
+          const videoId = v.videoId;
+          const owner = v.ownerText?.runs?.[0]?.text || 'Artista';
+          const lengthText = v.lengthText?.simpleText || '3:30';
+          const thumb =
+            v.thumbnail?.thumbnails?.slice(-1)[0]?.url ||
+            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+
+          let durationSec = 210;
+          if (/^\d+:\d{2}$/.test(lengthText)) {
+            const [m, s] = lengthText.split(':').map(Number);
+            durationSec = m * 60 + s;
+          } else if (/^\d+:\d{2}:\d{2}$/.test(lengthText)) {
+            const [h, m, s] = lengthText.split(':').map(Number);
+            durationSec = h * 3600 + m * 60 + s;
+          }
+
+          if (title && videoId && !BLACKLIST_REGEX.test(title) && !BLACKLIST_REGEX.test(owner)) {
+            if (!tracks.some((t) => t.id === `yt_${videoId}` || t.id === `ytm_${videoId}`)) {
+              tracks.push({
+                id: `yt_${videoId}`,
+                title,
+                artist: owner,
+                album: 'YouTube',
+                artworkUrl: thumb,
+                audioUrl: '', // Resolvido dinamicamente pelo StreamResolver
+                durationSeconds: durationSec,
+                genre: 'YouTube',
+              });
+            }
+          }
+        }
+
+        for (const k of Object.keys(obj)) {
+          walk(obj[k]);
+        }
+      };
+
+      walk(data);
+      return tracks.slice(0, limit);
+    } catch (e) {
+      console.warn('YouTube search error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Motor Complementar: SoundCloud (Áudios completos com vocais e MP3 progressivo)
    */
   private static async searchSoundCloud(query: string, limit = 18): Promise<Track[]> {
     try {
@@ -205,114 +285,11 @@ export class SearchService {
   }
 
   /**
-   * Pesquisa no Deezer API (com filtro anti-karaokê e anti-instrumental)
-   */
-  private static async searchDeezer(query: string, page = 0, limit = 25): Promise<SearchResult | null> {
-    try {
-      const index = page * limit;
-      const url = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=${limit}&index=${index}`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-        return null;
-      }
-
-      const tracks: Track[] = data.data
-        .filter((item: any) => {
-          if (!item.preview || item.preview.length === 0) return false;
-          if (BLACKLIST_REGEX.test(item.title || '') || BLACKLIST_REGEX.test(item.artist?.name || '')) {
-            return false;
-          }
-          return true;
-        })
-        .map((item: any) => ({
-          id: `dz_${item.id}`,
-          title: item.title_short || item.title,
-          artist: item.artist?.name || 'Artista Desconhecido',
-          album: item.album?.title || 'Single',
-          artworkUrl:
-            item.album?.cover_big ||
-            item.album?.cover_medium ||
-            item.artist?.picture_big ||
-            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500',
-          audioUrl: item.preview,
-          durationSeconds: item.duration || 180,
-          genre: item.genre_id ? String(item.genre_id) : undefined,
-        }));
-
-      const total = typeof data.total === 'number' ? data.total : tracks.length;
-      const hasMore = (page + 1) * limit < total;
-
-      return {
-        tracks,
-        hasMore,
-        total,
-        provider: 'deezer',
-      };
-    } catch (e) {
-      console.warn('Deezer search error:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Pesquisa Secundária no Apple iTunes Search API
-   */
-  private static async searchITunes(query: string, page = 0, limit = 25): Promise<SearchResult | null> {
-    try {
-      const offset = page * limit;
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=${limit}&offset=${offset}`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-        return null;
-      }
-
-      const tracks: Track[] = data.results
-        .filter((item: any) => {
-          if (!item.previewUrl || item.previewUrl.length === 0) return false;
-          if (BLACKLIST_REGEX.test(item.trackName || '') || BLACKLIST_REGEX.test(item.artistName || '')) {
-            return false;
-          }
-          return true;
-        })
-        .map((item: any) => ({
-          id: `it_${item.trackId}`,
-          title: item.trackName,
-          artist: item.artistName || 'Artista Desconhecido',
-          album: item.collectionName || 'Single',
-          artworkUrl: item.artworkUrl100
-            ? item.artworkUrl100.replace('100x100bb', '600x600bb')
-            : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500',
-          audioUrl: item.previewUrl,
-          durationSeconds: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : 180,
-          genre: item.primaryGenreName,
-        }));
-
-      const hasMore = data.results.length === limit;
-
-      return {
-        tracks,
-        hasMore,
-        total: data.resultCount,
-        provider: 'itunes',
-      };
-    } catch (e) {
-      console.warn('iTunes search error:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Busca Profunda Prioritária no YouTube Music & SoundCloud com fallback automático:
-   * 1. Consulta em paralelo YouTube Music (Innertube) e SoundCloud.
-   * 2. Intercala as melhores faixas com vocais reais e capas originais.
-   * 3. Filtra estritamente versões instrumentais, karaokê e toques de celular.
-   * 4. Se falhar ou não encontrar resultados, aciona o Deezer e iTunes.
+   * Motor de Busca Exclusivo: YouTube Music + YouTube
+   * 1. Consulta em paralelo YouTube Music (álbuns e lançamentos oficiais) e YouTube Global (clipes e áudios).
+   * 2. Inclui SoundCloud para vocais alternativos de estúdio.
+   * 3. Deezer foi 100% eliminado.
+   * 4. Bloqueia estritamente faixas instrumentais e karaokê.
    */
   static async searchTracks(query: string, page = 0, limit = 25): Promise<SearchResult> {
     const cleanQuery = query.trim();
@@ -326,50 +303,45 @@ export class SearchService {
       return cached.result;
     }
 
-    // Na página inicial (0), busca simultânea no YouTube Music e SoundCloud
-    if (page === 0) {
-      const [ytResult, scResult] = await Promise.allSettled([
-        this.searchYouTubeMusic(cleanQuery, 16),
-        this.searchSoundCloud(cleanQuery, 16),
-      ]);
+    // Consulta simultânea nos motores de alta fidelidade
+    const [ytmResult, ytResult, scResult] = await Promise.allSettled([
+      this.searchYouTubeMusic(cleanQuery, 16),
+      this.searchYouTube(cleanQuery, 16),
+      this.searchSoundCloud(cleanQuery, 12),
+    ]);
 
-      const ytTracks = ytResult.status === 'fulfilled' ? ytResult.value : [];
-      const scTracks = scResult.status === 'fulfilled' ? scResult.value : [];
+    const ytmTracks = ytmResult.status === 'fulfilled' ? ytmResult.value : [];
+    const ytTracks = ytResult.status === 'fulfilled' ? ytResult.value : [];
+    const scTracks = scResult.status === 'fulfilled' ? scResult.value : [];
 
-      if (ytTracks.length > 0 || scTracks.length > 0) {
-        // Intercala faixas do YouTube Music e SoundCloud para máxima riqueza musical
-        const combinedTracks: Track[] = [];
-        const maxLen = Math.max(ytTracks.length, scTracks.length);
+    const combinedTracks: Track[] = [];
+    const seenSignatures = new Set<string>();
 
-        for (let i = 0; i < maxLen; i++) {
-          if (i < ytTracks.length) combinedTracks.push(ytTracks[i]);
-          if (i < scTracks.length) combinedTracks.push(scTracks[i]);
-        }
+    const addUnique = (t: Track) => {
+      // Normaliza título e artista para evitar músicas duplicadas entre os motores
+      const cleanT = t.title.toLowerCase().replace(/official|video|clipe|audio|remastered|lyric|\(.*\)|\[.*\]/g, '').trim();
+      const cleanA = t.artist.toLowerCase().trim();
+      const sig = `${cleanA} - ${cleanT}`.replace(/[^a-z0-9]/g, '');
 
-        const finalResult: SearchResult = {
-          tracks: combinedTracks.slice(0, limit),
-          hasMore: combinedTracks.length >= limit,
-          total: combinedTracks.length,
-          provider: 'mixed',
-        };
-
-        this.cache.set(cacheKey, { result: finalResult, timestamp: Date.now() });
-        return finalResult;
+      if (!seenSignatures.has(sig)) {
+        seenSignatures.add(sig);
+        combinedTracks.push(t);
       }
-    }
+    };
 
-    // Fallback: Tenta Deezer (filtrado sem karaokê)
-    let result = await this.searchDeezer(cleanQuery, page, limit);
+    // 1. Prioridade Máxima: YouTube Music (Versões oficiais de álbum com capas em alta)
+    ytmTracks.forEach(addUnique);
 
-    // Fallback secundário: Apple iTunes
-    if (!result || result.tracks.length === 0) {
-      result = await this.searchITunes(cleanQuery, page, limit);
-    }
+    // 2. Prioridade Secundária: YouTube Global (Clipes oficiais e remasterizações)
+    ytTracks.forEach(addUnique);
 
-    const finalResult: SearchResult = result || {
-      tracks: [],
-      hasMore: false,
-      total: 0,
+    // 3. Suporte Vocal: SoundCloud
+    scTracks.forEach(addUnique);
+
+    const finalResult: SearchResult = {
+      tracks: combinedTracks.slice(0, limit),
+      hasMore: combinedTracks.length >= limit,
+      total: combinedTracks.length,
       provider: 'youtube',
     };
 
@@ -378,44 +350,34 @@ export class SearchService {
   }
 
   /**
-   * Retorna os Top Hits Globais reais (Deezer Charts filtrado contra karaokê/instrumental)
+   * Retorna os Top Hits Globais reais no YouTube Music e YouTube
    */
   static async getTrendingTracks(limit = 25): Promise<Track[]> {
     try {
-      const res = await fetch(`https://api.deezer.com/chart/0/tracks?limit=${limit * 2}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-          const tracks = json.data
-            .filter((item: any) => {
-              if (!item.preview) return false;
-              if (BLACKLIST_REGEX.test(item.title || '') || BLACKLIST_REGEX.test(item.artist?.name || '')) {
-                return false;
-              }
-              return true;
-            })
-            .slice(0, limit)
-            .map((item: any) => ({
-              id: `dz_${item.id}`,
-              title: item.title_short || item.title,
-              artist: item.artist?.name || 'Artista Desconhecido',
-              album: item.album?.title || 'Top Hit',
-              artworkUrl:
-                item.album?.cover_big ||
-                item.album?.cover_medium ||
-                'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500',
-              audioUrl: item.preview,
-              durationSeconds: item.duration || 180,
-              genre: 'Top Global',
-            }));
+      const [ytmHits, ytHits] = await Promise.allSettled([
+        this.searchYouTubeMusic('Top Hits Brasil 2026', 15),
+        this.searchYouTube('Top Musicas Mais Tocadas 2026', 15),
+      ]);
 
-          if (tracks.length > 0) {
-            return tracks;
-          }
+      const t1 = ytmHits.status === 'fulfilled' ? ytmHits.value : [];
+      const t2 = ytHits.status === 'fulfilled' ? ytHits.value : [];
+
+      const combined: Track[] = [];
+      const seen = new Set<string>();
+
+      for (const t of [...t1, ...t2]) {
+        const key = `${t.artist.toLowerCase()} - ${t.title.toLowerCase()}`.replace(/[^a-z0-9]/g, '');
+        if (!seen.has(key)) {
+          seen.add(key);
+          combined.push(t);
         }
       }
+
+      if (combined.length > 0) {
+        return combined.slice(0, limit);
+      }
     } catch (e) {
-      console.warn('Erro ao carregar top charts Deezer:', e);
+      console.warn('Erro ao carregar top hits do YouTube:', e);
     }
 
     return [];

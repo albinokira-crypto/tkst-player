@@ -105,17 +105,14 @@ const TrackRowItem: React.FC<TrackRowProps> = React.memo(
             <Text style={styles.rowDuration}>
               {StreamResolver.formatDuration(track.durationSeconds)}
             </Text>
+            {track.id.startsWith('ytm_') && (
+              <Text style={[styles.providerBadge, { color: '#FF2A2A', borderColor: '#FF2A2A' }]}>YouTube Music</Text>
+            )}
             {track.id.startsWith('yt_') && (
-              <Text style={[styles.providerBadge, { color: '#FF3B30', borderColor: '#FF3B30' }]}>YouTube Music</Text>
+              <Text style={[styles.providerBadge, { color: '#FF3B30', borderColor: '#FF3B30' }]}>YouTube</Text>
             )}
             {track.id.startsWith('sc_') && (
               <Text style={[styles.providerBadge, { color: '#FF9500', borderColor: '#FF9500' }]}>SoundCloud</Text>
-            )}
-            {track.id.startsWith('dz_') && (
-              <Text style={styles.providerBadge}>Deezer</Text>
-            )}
-            {track.id.startsWith('it_') && (
-              <Text style={styles.providerBadge}>Apple</Text>
             )}
           </View>
         </View>

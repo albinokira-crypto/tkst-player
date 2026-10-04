@@ -150,7 +150,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Sincronizado com a Vercel',
-          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.4.0\n• Motores: YouTube Music + SoundCloud\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
+          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.5.0\n• Motores: YouTube Music + YouTube (Deezer Removido)\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
           [
             { text: 'Fechar', style: 'cancel' },
             {
@@ -424,13 +424,13 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.4.0 (YouTube & SoundCloud)</Text>
+                <Text style={styles.versionValue}>v1.5.0 (YouTube & YouTube Music)</Text>
               </View>
             </View>
 
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Motor de Áudio:</Text>
-              <Text style={styles.versionSubValue}>YouTube + SoundCloud (Vocais Reais)</Text>
+              <Text style={styles.versionSubValue}>YouTube Music + YouTube (Áudio Integral)</Text>
             </View>
 
             <View style={styles.versionRow}>
