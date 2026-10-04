@@ -213,7 +213,7 @@ export class SearchService {
                 gl: 'BR',
               },
             },
-            query: `${query} official`,
+            query,
           }),
         }
       );
@@ -359,29 +359,46 @@ export class SearchService {
     const ytTracks = ytResult.status === 'fulfilled' ? ytResult.value : [];
     const scTracks = scResult.status === 'fulfilled' ? scResult.value : [];
 
-    const combinedTracks: Track[] = [];
-    const seenSignatures = new Set<string>();
+    const LIVE_REGEX = /[\(\[](ao vivo|live|show|dvd|em show)[\)\]]|ao vivo|ao-vivo/i;
+    const isLive = (t: string) => LIVE_REGEX.test(t);
 
-    const addUnique = (t: Track) => {
+    const trackMap = new Map<string, Track>();
+
+    const addOrUpgrade = (t: Track) => {
       // Normaliza título e artista para evitar músicas duplicadas entre os motores
       const cleanT = t.title.toLowerCase().replace(/official|video|clipe|audio|remastered|lyric|\(.*\)|\[.*\]/g, '').trim();
       const cleanA = t.artist.toLowerCase().trim();
       const sig = `${cleanA} - ${cleanT}`.replace(/[^a-z0-9]/g, '');
 
-      if (!seenSignatures.has(sig)) {
-        seenSignatures.add(sig);
-        combinedTracks.push(t);
+      if (!trackMap.has(sig)) {
+        trackMap.set(sig, t);
+      } else {
+        const existing = trackMap.get(sig)!;
+        // Se a faixa existente é ao vivo e a nova é versão de estúdio (não ao vivo), substitui pela de estúdio!
+        if (isLive(existing.title) && !isLive(t.title)) {
+          trackMap.set(sig, t);
+        }
       }
     };
 
-    // 1. Prioridade Máxima: YouTube Music (Versões oficiais de álbum com capas em alta)
-    ytmTracks.forEach(addUnique);
+    // 1. YouTube Music (Álbuns e lançamentos oficiais)
+    ytmTracks.forEach(addOrUpgrade);
 
-    // 2. Prioridade Secundária: YouTube Global (Clipes oficiais e remasterizações)
-    ytTracks.forEach(addUnique);
+    // 2. YouTube Global (Clipes e áudios)
+    ytTracks.forEach(addOrUpgrade);
 
-    // 3. Suporte Vocal: SoundCloud
-    scTracks.forEach(addUnique);
+    // 3. SoundCloud (Vocais alternativos)
+    scTracks.forEach(addOrUpgrade);
+
+    const combinedTracks = Array.from(trackMap.values());
+
+    // Priorização Inteligente: Versões de estúdio aparecem no TOPO;
+    // músicas que só existem gravadas ao vivo (típico de sertanejo/pagode) aparecem em seguida
+    combinedTracks.sort((a, b) => {
+      const aLive = isLive(a.title) ? 1 : 0;
+      const bLive = isLive(b.title) ? 1 : 0;
+      return aLive - bLive;
+    });
 
     const finalResult: SearchResult = {
       tracks: combinedTracks.slice(0, limit),
@@ -407,16 +424,28 @@ export class SearchService {
       const t1 = ytmHits.status === 'fulfilled' ? ytmHits.value : [];
       const t2 = ytHits.status === 'fulfilled' ? ytHits.value : [];
 
-      const combined: Track[] = [];
-      const seen = new Set<string>();
+      const LIVE_REGEX = /[\(\[](ao vivo|live|show|dvd|em show)[\)\]]|ao vivo|ao-vivo/i;
+      const isLive = (t: string) => LIVE_REGEX.test(t);
 
+      const trackMap = new Map<string, Track>();
       for (const t of [...t1, ...t2]) {
-        const key = `${t.artist.toLowerCase()} - ${t.title.toLowerCase()}`.replace(/[^a-z0-9]/g, '');
-        if (!seen.has(key)) {
-          seen.add(key);
-          combined.push(t);
+        const key = `${t.artist.toLowerCase()} - ${t.title.toLowerCase()}`.replace(/official|video|clipe|audio|remastered|lyric|\(.*\)|\[.*\]/g, '').replace(/[^a-z0-9]/g, '');
+        if (!trackMap.has(key)) {
+          trackMap.set(key, t);
+        } else {
+          const existing = trackMap.get(key)!;
+          if (isLive(existing.title) && !isLive(t.title)) {
+            trackMap.set(key, t);
+          }
         }
       }
+
+      const combined = Array.from(trackMap.values());
+      combined.sort((a, b) => {
+        const aLive = isLive(a.title) ? 1 : 0;
+        const bLive = isLive(b.title) ? 1 : 0;
+        return aLive - bLive;
+      });
 
       if (combined.length > 0) {
         return combined.slice(0, limit);

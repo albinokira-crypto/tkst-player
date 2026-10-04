@@ -143,7 +143,7 @@ export const ProfileScreen = () => {
         setUpdateMessage('Atualização pronta!');
         Alert.alert(
           'Nova Versão Instalada!',
-          'A versão mais recente da Vercel (v1.7.0) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para aplicar as correções de playlist e visual?',
+          'A versão mais recente da Vercel (v1.7.1) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para aplicar a priorização de músicas de estúdio?',
           [
             { text: 'Mais tarde', style: 'cancel' },
             {
@@ -159,7 +159,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Sincronizado com a Vercel',
-          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.7.0\n• Motores: YouTube Music + YouTube\n• Playlists: Reprodução Instantânea sem Travamento\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
+          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.7.1\n• Motores: YouTube Music + YouTube\n• Busca: Versões de Estúdio Prioritárias\n• Playlists: Reprodução Instantânea\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
           [
             { text: 'Fechar', style: 'cancel' },
             {
@@ -242,7 +242,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Ionicons name="shield" size={20} color="#00E5FF" />
-                <Text style={styles.statNumber}>v1.7.0</Text>
+                <Text style={styles.statNumber}>v1.7.1</Text>
                 <Text style={styles.statLabel}>Versão do App</Text>
               </View>
             </View>
@@ -433,7 +433,7 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.7.0 (YouTube & YouTube Music)</Text>
+                <Text style={styles.versionValue}>v1.7.1 (Versões de Estúdio Prioritárias)</Text>
               </View>
             </View>
 
