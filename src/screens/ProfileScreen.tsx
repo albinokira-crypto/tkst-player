@@ -143,7 +143,7 @@ export const ProfileScreen = () => {
         setUpdateMessage('Atualização pronta!');
         Alert.alert(
           'Nova Versão Instalada!',
-          'A atualização mais recente da Vercel (v1.4.0) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para carregar as novidades?',
+          'A versão mais recente da Vercel (v1.6.0) foi baixada com sucesso no seu dispositivo.\n\nDeseja reiniciar o aplicativo agora para aplicar as novidades e correções de playlist?',
           [
             { text: 'Mais tarde', style: 'cancel' },
             {
