@@ -85,7 +85,7 @@ module.exports = (req, res) => {
         expoClient: {
           name: 'TKST Player',
           slug: 'tkst-player',
-          version: '1.2.0'
+          version: '1.3.0'
         }
       }
     };

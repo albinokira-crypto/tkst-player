@@ -113,7 +113,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Tudo Atualizado!',
-          `Você já está executando a versão mais recente do TKST Player!\n\n• Versão: v1.2.0\n• Motor de Busca: Deezer + Apple iTunes\n• Pacote Ativo: ${activeId}\n• Runtime: ${Updates.runtimeVersion || '1.1.0'}`
+          `Você já está executando a versão mais recente do TKST Player!\n\n• Versão: v1.3.0\n• Motor de Áudio: Músicas Completas (Global)\n• Pacote Ativo: ${activeId}\n• Runtime: ${Updates.runtimeVersion || '1.1.0'}`
         );
       }
     } catch (err: any) {
@@ -255,13 +255,13 @@ export const ProfileScreen = () => {
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>Versão do App:</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionValue}>v1.2.0 (Build 2026.10)</Text>
+                <Text style={styles.versionValue}>v1.3.0 (Músicas Completas)</Text>
               </View>
             </View>
 
             <View style={styles.versionRow}>
-              <Text style={styles.versionLabel}>Motor de Busca:</Text>
-              <Text style={styles.versionSubValue}>Deezer + Apple iTunes Global</Text>
+              <Text style={styles.versionLabel}>Motor de Áudio:</Text>
+              <Text style={styles.versionSubValue}>Acervo Global (Músicas Inteiras)</Text>
             </View>
 
             <View style={styles.versionRow}>

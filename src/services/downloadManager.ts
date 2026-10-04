@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../types';
+import { StreamResolver } from './streamResolver';
 
 const DOWNLOAD_DIR = `${FileSystem.documentDirectory}tracks/`;
 const OFFLINE_INDEX_KEY = '@tkst_offline_tracks_v1';
@@ -35,8 +36,11 @@ export class DownloadManager {
     const cleanId = track.id.replace(/[^a-zA-Z0-9_-]/g, '_');
     const localUri = `${DOWNLOAD_DIR}${cleanId}.mp3`;
 
+    // Garante que o download baixa a música inteira e não apenas a prévia de 30s
+    const fullAudioUrl = await StreamResolver.resolveAudioStream(track);
+
     const downloadResumable = FileSystem.createDownloadResumable(
-      track.audioUrl,
+      fullAudioUrl,
       localUri,
       {},
       (downloadProgress) => {
@@ -53,6 +57,7 @@ export class DownloadManager {
 
     const downloadedTrack: Track = {
       ...track,
+      audioUrl: fullAudioUrl,
       isDownloaded: true,
       localAudioUri: result.uri,
     };
