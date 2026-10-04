@@ -20,7 +20,12 @@ module.exports = (req, res) => {
   }
 
   if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    return res.status(404).json({ error: `Asset ${safeAsset} não encontrado.` });
+    return res.status(404).json({
+      error: `Asset ${safeAsset} não encontrado.`,
+      cwd: process.cwd(),
+      dir: fs.readdirSync(process.cwd()),
+      attempted: filePath
+    });
   }
 
   try {
