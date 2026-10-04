@@ -10,20 +10,33 @@ module.exports = (req, res) => {
   // Previne Directory Traversal
   const safeAsset = assetName.replace(/^(\.\.[\/\\])+/, '').replace(/\\/g, '/');
   
-  // Procura o arquivo em updates/ ou public/
-  let filePath = path.join(process.cwd(), 'updates', safeAsset);
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(process.cwd(), 'public', safeAsset);
-  }
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(process.cwd(), safeAsset);
-  }
+  const possiblePaths = [
+    path.join(process.cwd(), 'updates', safeAsset),
+    path.join(process.cwd(), 'updates', safeAsset.replace(/^_expo\//, 'bundles/')),
+    path.join(process.cwd(), 'public', safeAsset),
+    path.join(process.cwd(), safeAsset),
+  ];
 
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+  let filePath = possiblePaths.find((p) => {
+    try {
+      return fs.existsSync(p) && fs.statSync(p).isFile();
+    } catch {
+      return false;
+    }
+  });
+
+  if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    let updatesDir = [];
+    try {
+      updatesDir = fs.readdirSync(path.join(process.cwd(), 'updates'));
+    } catch (e) {
+      updatesDir = [e.message];
+    }
     return res.status(404).json({
       error: `Asset ${safeAsset} não encontrado.`,
       cwd: process.cwd(),
       dir: fs.readdirSync(process.cwd()),
+      updatesDir,
       attempted: filePath
     });
   }
