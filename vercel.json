@@ -7,6 +7,18 @@
       "includeFiles": "{updates/**,public/**}"
     }
   },
+  "redirects": [
+    {
+      "source": "/download",
+      "destination": "https://github.com/albinokira-crypto/tkst-player/releases/latest/download/tkst-player.apk",
+      "permanent": false
+    },
+    {
+      "source": "/apk",
+      "destination": "https://github.com/albinokira-crypto/tkst-player/releases/latest/download/tkst-player.apk",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

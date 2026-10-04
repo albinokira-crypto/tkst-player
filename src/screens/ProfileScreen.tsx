@@ -11,6 +11,7 @@ import {
   Image,
   StatusBar,
   Platform,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -195,6 +196,24 @@ export const ProfileScreen = () => {
       Alert.alert('Erro ao recarregar', e?.message || 'Não foi possível recarregar o app agora.');
     } finally {
       setIsReloading(false);
+    }
+  };
+
+  const handleShareApp = async () => {
+    try {
+      const downloadUrl = 'https://tkst-player.vercel.app/download';
+      const shareMessage =
+        '🔥 *TKST Player - Músicas & Discografias Oficiais*\n\n' +
+        'Ouça músicas de estúdio oficiais, pesquise álbuns completos e baixe faixas para ouvir offline sem anúncios!\n\n' +
+        `📲 Baixe o aplicativo (APK Oficial para Android):\n${downloadUrl}`;
+
+      await Share.share({
+        title: 'TKST Player - Baixar APK',
+        message: shareMessage,
+        url: downloadUrl,
+      });
+    } catch (err: any) {
+      Alert.alert('Erro ao compartilhar', err?.message || 'Não foi possível abrir o compartilhamento.');
     }
   };
 
@@ -415,6 +434,40 @@ export const ProfileScreen = () => {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* CARD: Compartilhar o App & Download do APK */}
+        <View style={[styles.card, { marginTop: 18 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="share-social-outline" size={20} color="#00E5FF" />
+            <Text style={[styles.loginTitle, { marginBottom: 0, marginLeft: 8 }]}>
+              Compartilhar o App
+            </Text>
+          </View>
+          <Text style={styles.updateInfoText}>
+            Envie o link oficial para seus amigos baixarem o instalador APK do TKST Player diretamente no celular Android.
+          </Text>
+
+          {/* Link Box Display */}
+          <View style={styles.shareLinkBox}>
+            <Ionicons name="cloud-download-outline" size={18} color="#00E5FF" />
+            <Text style={styles.shareLinkText} numberOfLines={1}>
+              tkst-player.vercel.app/download
+            </Text>
+            <View style={styles.shareBadge}>
+              <Text style={styles.shareBadgeText}>APK</Text>
+            </View>
+          </View>
+
+          {/* Botão de Compartilhar */}
+          <TouchableOpacity
+            style={styles.sharePrimaryButton}
+            onPress={handleShareApp}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="share-social" size={18} color="#08080A" />
+            <Text style={styles.sharePrimaryButtonText}>Enviar Link de Download do APK</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* CARD: Atualização OTA e Informações do Sistema */}
         <View style={[styles.card, { marginTop: 18 }]}>
@@ -826,5 +879,50 @@ const styles = StyleSheet.create({
     color: '#00E5FF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  shareLinkBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161622',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#242436',
+    gap: 10,
+  },
+  shareLinkText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  shareBadge: {
+    backgroundColor: '#00E5FF1A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#00E5FF40',
+  },
+  shareBadgeText: {
+    color: '#00E5FF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  sharePrimaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00E5FF',
+    borderRadius: 12,
+    height: 48,
+    gap: 8,
+  },
+  sharePrimaryButtonText: {
+    color: '#08080A',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

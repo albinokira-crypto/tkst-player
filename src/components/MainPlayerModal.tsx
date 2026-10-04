@@ -36,12 +36,10 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
   const [downloaded, setDownloaded] = useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const insets = useSafeAreaInsets();
-
-  const topInset = Math.max(
-    insets.top,
-    Platform.OS === 'android' ? (StatusBar.currentHeight || 38) : 0,
-    38
-  );
+  const androidBar = StatusBar.currentHeight || 38;
+  const topInset = Platform.OS === 'android'
+    ? Math.max(insets.top, androidBar) + 20
+    : Math.max(insets.top, 44);
   const bottomInset = Math.max(insets.bottom, 24);
 
   useEffect(() => {
@@ -96,6 +94,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
+      statusBarTranslucent={true}
       onRequestClose={() => {
         if (isAddToPlaylistOpen) {
           setIsAddToPlaylistOpen(false);
