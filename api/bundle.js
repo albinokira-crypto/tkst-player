@@ -10,10 +10,13 @@ module.exports = (req, res) => {
     return res.status(200).end();
   }
 
+  const isVersioned = Boolean(req.query && (req.query.v || req.query.hash || req.query.id));
+
   const possiblePaths = [
     path.join(__dirname, 'bundle_data.hbc'),
     path.join(process.cwd(), 'api', 'bundle_data.hbc'),
     path.join(process.cwd(), 'public', 'bundle.hbc'),
+    path.join(process.cwd(), 'updates', 'bundle.hbc'),
     path.join(process.cwd(), 'updates', 'bundle_data.hbc'),
   ];
 
@@ -39,7 +42,11 @@ module.exports = (req, res) => {
   try {
     const fileBuffer = fs.readFileSync(bundlePath);
     res.setHeader('content-type', 'application/javascript');
-    res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+    if (isVersioned) {
+      res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+    } else {
+      res.setHeader('cache-control', 'private, no-cache, no-store, must-revalidate');
+    }
     res.setHeader('content-length', fileBuffer.length);
 
     if (req.method === 'HEAD') {

@@ -114,7 +114,7 @@ module.exports = (req, res) => {
       key: bundleMeta.key,
       fileExtension: '.bundle',
       contentType: 'application/javascript',
-      url: `${baseUrl}/api/bundle`,
+      url: `${baseUrl}/api/bundle?v=${updateId}&hash=${bundleMeta.key}`,
     },
     assets: assets.map((a) => ({
       hash: a.hash,
@@ -135,7 +135,7 @@ module.exports = (req, res) => {
 
   res.setHeader('expo-protocol-version', clientProtocolVersion);
   res.setHeader('expo-sfv-version', 0);
-  res.setHeader('cache-control', 'private, max-age=0, no-cache');
+  res.setHeader('cache-control', 'private, no-cache, no-store, must-revalidate');
 
   // Se o cliente aceita multipart/mixed (padrão nativo do expo-updates no Android)
   if (acceptHeader.includes('multipart/mixed') || clientProtocolVersion === '1') {
