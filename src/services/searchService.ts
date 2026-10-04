@@ -11,6 +11,14 @@ export interface SearchResult {
 const BLACKLIST_REGEX =
   /(karaoke|instrumental|tribute|originally performed|backing track|karaokê|ringtone|toque de celular|sem voz|minus one|play along|playback|versão instrumental|zzang)/i;
 
+// Expressão regular rigorosa para bloquear versões ao vivo, shows, acústicos e DVDs
+const STRICT_LIVE_OR_ACOUSTIC_REGEX =
+  /([\(\[]\s*(ao vivo|live|ac[uú]stic[oa]|show|shows|dvd|unplugged|show ao vivo|em show|ao vivo no [^)\\]]+|ao vivo em [^)\\]]+|gravado ao vivo|show completo|dvd completo|concert)\s*[\)\]]|\b(ao vivo|live show|ac[uú]stic[oa]|unplugged|show completo|dvd completo|ao vivo em|ao vivo no|dvd|concert|show|shows)\b)/i;
+
+export const isLiveOrAcoustic = (text: string): boolean => {
+  return STRICT_LIVE_OR_ACOUSTIC_REGEX.test(text || '');
+};
+
 let cachedScClientId = 'dkevB9EsY4jIoSm8RfddPNUKyn6hurXF';
 let scClientTimestamp = 0;
 
@@ -159,8 +167,15 @@ export class SearchService {
             thumbs.slice(-1)[0]?.url ||
             'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
 
-          // Filtra faixas com vocais reais e bloqueia karaokê/instrumental
-          if (title && videoId && !BLACKLIST_REGEX.test(title) && !BLACKLIST_REGEX.test(artist)) {
+          // Filtra faixas com vocais reais e bloqueia karaokê, instrumental, ao vivo e acústico
+          if (
+            title &&
+            videoId &&
+            !BLACKLIST_REGEX.test(title) &&
+            !BLACKLIST_REGEX.test(artist) &&
+            !isLiveOrAcoustic(title) &&
+            !isLiveOrAcoustic(artist)
+          ) {
             if (!tracks.some((t) => t.id === `ytm_${videoId}` || t.id === `yt_${videoId}`)) {
               tracks.push({
                 id: `ytm_${videoId}`,
@@ -253,7 +268,15 @@ export class SearchService {
             durationSec = h * 3600 + m * 60 + s;
           }
 
-          if (title && videoId && !BLACKLIST_REGEX.test(title) && !BLACKLIST_REGEX.test(owner)) {
+          if (
+            title &&
+            videoId &&
+            !BLACKLIST_REGEX.test(title) &&
+            !BLACKLIST_REGEX.test(owner) &&
+            !isLiveOrAcoustic(title) &&
+            !isLiveOrAcoustic(owner) &&
+            durationSec <= 720
+          ) {
             if (!tracks.some((t) => t.id === `yt_${videoId}` || t.id === `ytm_${videoId}`)) {
               tracks.push({
                 id: `yt_${videoId}`,
@@ -297,7 +320,11 @@ export class SearchService {
 
       for (const item of data.collection || []) {
         if (!item.duration || item.duration < 60000) continue;
-        if (BLACKLIST_REGEX.test(item.title || '') || BLACKLIST_REGEX.test(item.user?.username || '')) {
+        if (
+          BLACKLIST_REGEX.test(item.title || '') ||
+          BLACKLIST_REGEX.test(item.user?.username || '') ||
+          isLiveOrAcoustic(item.title || '')
+        ) {
           continue;
         }
 
@@ -348,23 +375,27 @@ export class SearchService {
       return cached.result;
     }
 
-    // Consulta simultânea nos motores de alta fidelidade
-    const [ytmResult, ytResult, scResult] = await Promise.allSettled([
+    // Consulta simultânea com foco em Músicas de Estúdio e Vídeo Clipes Oficiais
+    const [ytmResult, ytClipsResult, ytStudioResult, scResult] = await Promise.allSettled([
       this.searchYouTubeMusic(cleanQuery, 16),
-      this.searchYouTube(cleanQuery, 16),
-      this.searchSoundCloud(cleanQuery, 12),
+      this.searchYouTube(`${cleanQuery} clipe oficial`, 12),
+      this.searchYouTube(`${cleanQuery} audio oficial`, 12),
+      this.searchSoundCloud(cleanQuery, 8),
     ]);
 
     const ytmTracks = ytmResult.status === 'fulfilled' ? ytmResult.value : [];
-    const ytTracks = ytResult.status === 'fulfilled' ? ytResult.value : [];
+    const ytClips = ytClipsResult.status === 'fulfilled' ? ytClipsResult.value : [];
+    const ytStudio = ytStudioResult.status === 'fulfilled' ? ytStudioResult.value : [];
     const scTracks = scResult.status === 'fulfilled' ? scResult.value : [];
-
-    const LIVE_REGEX = /[\(\[](ao vivo|live|show|dvd|em show)[\)\]]|ao vivo|ao-vivo/i;
-    const isLive = (t: string) => LIVE_REGEX.test(t);
 
     const trackMap = new Map<string, Track>();
 
-    const addOrUpgrade = (t: Track) => {
+    const addStudioTrack = (t: Track) => {
+      // Bloqueio rigoroso de versões ao vivo, shows, acústicos e DVDs
+      if (isLiveOrAcoustic(t.title) || isLiveOrAcoustic(t.album || '')) {
+        return;
+      }
+
       // Normaliza título e artista para evitar músicas duplicadas entre os motores
       const cleanT = t.title.toLowerCase().replace(/official|video|clipe|audio|remastered|lyric|\(.*\)|\[.*\]/g, '').trim();
       const cleanA = t.artist.toLowerCase().trim();
@@ -372,33 +403,29 @@ export class SearchService {
 
       if (!trackMap.has(sig)) {
         trackMap.set(sig, t);
-      } else {
-        const existing = trackMap.get(sig)!;
-        // Se a faixa existente é ao vivo e a nova é versão de estúdio (não ao vivo), substitui pela de estúdio!
-        if (isLive(existing.title) && !isLive(t.title)) {
-          trackMap.set(sig, t);
-        }
       }
     };
 
-    // 1. YouTube Music (Álbuns e lançamentos oficiais)
-    ytmTracks.forEach(addOrUpgrade);
+    // 1. YouTube Music (Versões oficiais de álbum de estúdio)
+    ytmTracks.forEach(addStudioTrack);
 
-    // 2. YouTube Global (Clipes e áudios)
-    ytTracks.forEach(addOrUpgrade);
+    // 2. YouTube Global: Vídeo Clipes Oficiais (áudios originais de clipe)
+    ytClips.forEach(addStudioTrack);
 
-    // 3. SoundCloud (Vocais alternativos)
-    scTracks.forEach(addOrUpgrade);
+    // 3. YouTube Global: Áudios Oficiais de Estúdio
+    ytStudio.forEach(addStudioTrack);
 
-    const combinedTracks = Array.from(trackMap.values());
+    // 4. SoundCloud (áudios de estúdio)
+    scTracks.forEach(addStudioTrack);
 
-    // Priorização Inteligente: Versões de estúdio aparecem no TOPO;
-    // músicas que só existem gravadas ao vivo (típico de sertanejo/pagode) aparecem em seguida
-    combinedTracks.sort((a, b) => {
-      const aLive = isLive(a.title) ? 1 : 0;
-      const bLive = isLive(b.title) ? 1 : 0;
-      return aLive - bLive;
-    });
+    let combinedTracks = Array.from(trackMap.values());
+
+    // Se nenhum resultado de estúdio estrito foi retornado (ex: artista que só gravou DVD de show),
+    // inclui resultados de fallback para evitar tela em branco
+    if (combinedTracks.length === 0) {
+      const fallbackYt = await this.searchYouTube(cleanQuery, 15);
+      combinedTracks = fallbackYt;
+    }
 
     const finalResult: SearchResult = {
       tracks: combinedTracks.slice(0, limit),
