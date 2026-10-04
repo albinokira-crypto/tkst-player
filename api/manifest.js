@@ -49,7 +49,7 @@ module.exports = (req, res) => {
           key: path.basename(asset.path),
           fileExtension: `.${asset.ext}`,
           contentType: asset.ext === 'png' ? 'image/png' : asset.ext === 'jpg' ? 'image/jpeg' : 'font/ttf',
-          url: `${baseUrl}/api/assets?asset=${encodeURIComponent(cleanPath)}`,
+          url: `${baseUrl}/${cleanPath}`,
         };
       }),
       metadata: {},

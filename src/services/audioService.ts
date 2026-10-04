@@ -7,6 +7,7 @@ import {
   AudioStatus,
 } from 'expo-audio';
 import { Track, PlaybackState } from '../types';
+import { StreamResolver } from './streamResolver';
 
 type Listener = (state: PlaybackState) => void;
 
@@ -83,9 +84,7 @@ class AudioService {
         this.player = null;
       }
 
-      const sourceUri = (track.isDownloaded && track.localAudioUri)
-        ? track.localAudioUri
-        : track.audioUrl;
+      const sourceUri = await StreamResolver.resolveAudioStream(track);
 
       const player = createAudioPlayer(sourceUri, {
         updateInterval: 350,
