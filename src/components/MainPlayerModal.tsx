@@ -6,21 +6,23 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Dimensions,
   ActivityIndicator,
   Alert,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { audioService } from '../services/audioService';
 import { DownloadManager } from '../services/downloadManager';
 import { AddToPlaylistModal } from './AddToPlaylistModal';
 import { TKSTBackground } from './TKSTBackground';
 import { PlaybackState } from '../types';
 
-const { width } = Dimensions.get('window');
-const ARTWORK_SIZE = width - 48;
+const { width, height } = Dimensions.get('window');
+const ARTWORK_SIZE = Math.min(width - 56, height * 0.38, 330);
 
 interface MainPlayerModalProps {
   visible: boolean;
@@ -32,6 +34,14 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0,
+    28
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
 
   useEffect(() => {
     return audioService.subscribe((state) => {
@@ -67,21 +77,34 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <TKSTBackground variant="tiger" opacity={0.25}>
-        <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { paddingTop: topInset + 6, paddingBottom: bottomInset }]}>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.iconButton} onPress={onClose}>
-              <Ionicons name="chevron-down" size={28} color="#FFFFFF" />
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="chevron-down" size={30} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>TKST PLAYER</Text>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerSubtitle}>TOCANDO AGORA</Text>
+              <Text style={styles.headerTitle}>TKST PLAYER</Text>
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => setIsAddToPlaylistOpen(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Ionicons name="bookmark-outline" size={24} color="#00E5FF" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={handleDownload}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={handleDownload}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 {isDownloading ? (
                   <ActivityIndicator size="small" color="#00E5FF" />
                 ) : (
@@ -194,7 +217,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
             track={playback.currentTrack}
             onClose={() => setIsAddToPlaylistOpen(false)}
           />
-        </SafeAreaView>
+        </View>
       </TKSTBackground>
     </Modal>
   );
@@ -205,25 +228,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
-    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 56,
+    height: 52,
+    marginBottom: 4,
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSubtitle: {
+    color: '#00E5FF',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   headerTitle: {
-    color: '#8E8E93',
-    fontSize: 12,
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
+    marginTop: 2,
   },
   artworkContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 12,
+    marginVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
   },
   artwork: {
     width: ARTWORK_SIZE,
