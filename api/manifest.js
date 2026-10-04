@@ -41,14 +41,17 @@ module.exports = (req, res) => {
       launchAsset: {
         key: 'bundle',
         contentType: 'application/javascript',
-        url: `${baseUrl}/${platformData.bundle.replace(/\\/g, '/')}`,
+        url: `${baseUrl}/api/assets?asset=${encodeURIComponent(platformData.bundle.replace(/\\/g, '/'))}`,
       },
-      assets: (platformData.assets || []).map((asset) => ({
-        key: path.basename(asset.path),
-        fileExtension: `.${asset.ext}`,
-        contentType: asset.ext === 'png' ? 'image/png' : asset.ext === 'jpg' ? 'image/jpeg' : 'font/ttf',
-        url: `${baseUrl}/${asset.path.replace(/\\/g, '/')}`,
-      })),
+      assets: (platformData.assets || []).map((asset) => {
+        const cleanPath = asset.path.replace(/\\/g, '/');
+        return {
+          key: path.basename(asset.path),
+          fileExtension: `.${asset.ext}`,
+          contentType: asset.ext === 'png' ? 'image/png' : asset.ext === 'jpg' ? 'image/jpeg' : 'font/ttf',
+          url: `${baseUrl}/api/assets?asset=${encodeURIComponent(cleanPath)}`,
+        };
+      }),
       metadata: {},
       extra: {
         expoClient: {
