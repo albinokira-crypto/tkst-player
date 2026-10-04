@@ -85,32 +85,43 @@ export const ProfileScreen = () => {
   };
 
   const handleCheckUpdates = async () => {
-    if (__DEV__ || !Updates.isEnabled) {
-      Alert.alert(
-        'Modo Local / Expo Go',
-        'As atualizações automáticas via nuvem (OTA) funcionam no aplicativo instalado (.apk / build preview). No modo de desenvolvimento, suas alterações já são atualizadas instantaneamente via Fast Refresh.'
-      );
-      return;
-    }
     setIsCheckingUpdates(true);
     try {
+      if (__DEV__ || !Updates.isEnabled) {
+        Alert.alert(
+          'Diagnóstico Local',
+          `Updates.isEnabled: ${Updates.isEnabled ? 'Sim' : 'Não'}\n__DEV__: ${__DEV__ ? 'Sim' : 'Não'}\n\nNo APK instalado as atualizações são baixadas automaticamente da Vercel.`
+        );
+        return;
+      }
+
+      Alert.alert('Buscando Atualizações', 'Conectando ao servidor da Vercel...');
       const update = await Updates.checkForUpdateAsync();
+
       if (update.isAvailable) {
-        Alert.alert('Atualização Disponível', 'Baixando as novidades do TKST Player...');
+        Alert.alert('Atualização Encontrada!', 'Baixando nova versão com busca global...');
         await Updates.fetchUpdateAsync();
         Alert.alert(
-          'Atualização Concluída',
-          'Nova versão pronta! Deseja reiniciar agora para carregar as alterações?',
+          'Atualização Baixada com Sucesso!',
+          'A nova versão foi instalada no seu dispositivo. Deseja reiniciar agora para aplicar as novidades?',
           [
             { text: 'Mais tarde', style: 'cancel' },
             { text: 'Reiniciar Agora', onPress: () => Updates.reloadAsync() },
           ]
         );
       } else {
-        Alert.alert('Tudo Atualizado', 'Você já está rodando a versão mais recente do TKST Player.');
+        const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
+        Alert.alert(
+          'Tudo Atualizado!',
+          `Você já está executando a versão mais recente do TKST Player!\n\n• Versão: v1.2.0\n• Motor de Busca: Deezer + Apple iTunes\n• Pacote Ativo: ${activeId}\n• Runtime: ${Updates.runtimeVersion || '1.1.0'}`
+        );
       }
-    } catch {
-      Alert.alert('Aviso', 'Não foi possível verificar atualizações no momento.');
+    } catch (err: any) {
+      console.warn('Erro ao verificar atualizações:', err);
+      Alert.alert(
+        'Diagnóstico de Atualização',
+        `Mensagem: ${err?.message || 'Falha ao conectar com a Vercel'}\n\nRuntime do App: ${Updates.runtimeVersion || '1.1.0'}\nID Atual: ${Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base'}`
+      );
     } finally {
       setIsCheckingUpdates(false);
     }
@@ -232,12 +243,47 @@ export const ProfileScreen = () => {
 
         <View style={[styles.card, { marginTop: 18 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Ionicons name="cloud-download-outline" size={20} color="#00E5FF" />
-            <Text style={[styles.loginTitle, { marginBottom: 0, marginLeft: 8 }]}>Atualizações Automáticas (OTA)</Text>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#00E5FF" />
+            <Text style={[styles.loginTitle, { marginBottom: 0, marginLeft: 8 }]}>Versão do Sistema & OTA</Text>
           </View>
           <Text style={styles.updateInfoText}>
-            O TKST Player recebe melhorias e correções silenciosamente pela Vercel e GitHub sem necessidade de reinstalar o APK.
+            O TKST Player atualiza recursos e acervos silenciosamente pela nuvem Vercel sem precisar reinstalar o APK.
           </Text>
+
+          {/* Painel Informativo da Versão */}
+          <View style={styles.versionContainer}>
+            <View style={styles.versionRow}>
+              <Text style={styles.versionLabel}>Versão do App:</Text>
+              <View style={styles.versionBadge}>
+                <Text style={styles.versionValue}>v1.2.0 (Build 2026.10)</Text>
+              </View>
+            </View>
+
+            <View style={styles.versionRow}>
+              <Text style={styles.versionLabel}>Motor de Busca:</Text>
+              <Text style={styles.versionSubValue}>Deezer + Apple iTunes Global</Text>
+            </View>
+
+            <View style={styles.versionRow}>
+              <Text style={styles.versionLabel}>Pacote Ativo:</Text>
+              <Text style={[styles.versionSubValue, { color: Updates.updateId ? '#30D158' : '#00E5FF', fontWeight: '700' }]}>
+                {Updates.updateId
+                  ? `Nuvem Vercel (${Updates.updateId.substring(0, 8)})`
+                  : 'Instalação Base (APK)'}
+              </Text>
+            </View>
+
+            <View style={styles.versionRow}>
+              <Text style={styles.versionLabel}>Runtime Version:</Text>
+              <Text style={styles.versionSubValue}>{Updates.runtimeVersion || '1.1.0'}</Text>
+            </View>
+
+            <View style={styles.versionRow}>
+              <Text style={styles.versionLabel}>Servidor Cloud:</Text>
+              <Text style={styles.versionSubValue}>tkst-player-valeiroguerrente.vercel.app</Text>
+            </View>
+          </View>
+
           <TouchableOpacity
             style={styles.updateButton}
             onPress={handleCheckUpdates}
@@ -438,5 +484,41 @@ const styles = StyleSheet.create({
     color: '#00E5FF',
     fontWeight: '700',
     fontSize: 14,
+  },
+  versionContainer: {
+    backgroundColor: '#161622',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#242436',
+    gap: 10,
+  },
+  versionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  versionLabel: {
+    color: '#8E8E98',
+    fontSize: 13,
+  },
+  versionSubValue: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  versionBadge: {
+    backgroundColor: '#00E5FF18',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#00E5FF40',
+  },
+  versionValue: {
+    color: '#00E5FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });
