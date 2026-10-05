@@ -160,7 +160,7 @@ export const ProfileScreen = () => {
         const activeId = Updates.updateId ? Updates.updateId.substring(0, 8) : 'Base APK';
         Alert.alert(
           'Sincronizado com a Vercel',
-          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.7.2\n• Motores: YouTube Music + YouTube\n• Busca: Estúdio & Vídeo Clipes Exclusivos (Sem Ao Vivo/Acústico)\n• Playlists: Reprodução Instantânea\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
+          `O seu dispositivo está conectado ao servidor mais recente!\n\n• Versão: v1.8.0\n• Motores: Deezer + iTunes + YouTube Music\n• Discografia: Busca por Álbuns Oficiais e Artistas\n• Playlists: Álbuns Completos em 1 Clique\n• Pacote: ${activeId}\n\nDeseja recarregar o app agora para garantir que a versão em cache está ativa?`,
           [
             { text: 'Fechar', style: 'cancel' },
             {
@@ -261,7 +261,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Ionicons name="shield" size={20} color="#00E5FF" />
-                <Text style={styles.statNumber}>v1.7.2</Text>
+                <Text style={styles.statNumber}>v1.8.0</Text>
                 <Text style={styles.statLabel}>Versão do App</Text>
               </View>
             </View>
