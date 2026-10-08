@@ -135,9 +135,42 @@ export class PlaylistManager {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
   }
 
+  public static async reorderTracks(playlistId: string, fromIndex: number, toIndex: number): Promise<boolean> {
+    const playlists = await this.getPlaylists();
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (!playlist || !playlist.tracks) return false;
+    if (fromIndex < 0 || fromIndex >= playlist.tracks.length) return false;
+    if (toIndex < 0 || toIndex >= playlist.tracks.length) return false;
+    if (fromIndex === toIndex) return true;
+
+    const [moved] = playlist.tracks.splice(fromIndex, 1);
+    playlist.tracks.splice(toIndex, 0, moved);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
+    return true;
+  }
+
+  public static async moveTrack(playlistId: string, trackId: string, targetIndex: number): Promise<boolean> {
+    const playlists = await this.getPlaylists();
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (!playlist || !playlist.tracks) return false;
+    const fromIndex = playlist.tracks.findIndex((t) => t.id === trackId);
+    if (fromIndex === -1) return false;
+    return this.reorderTracks(playlistId, fromIndex, targetIndex);
+  }
+
+  public static async updatePlaylistTracks(playlistId: string, tracks: Track[]): Promise<boolean> {
+    const playlists = await this.getPlaylists();
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (!playlist) return false;
+    playlist.tracks = [...tracks];
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
+    return true;
+  }
+
   public static async deletePlaylist(playlistId: string): Promise<void> {
     const playlists = await this.getPlaylists();
     const filtered = playlists.filter((p) => p.id !== playlistId);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   }
 }
+

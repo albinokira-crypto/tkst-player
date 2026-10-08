@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PlaylistManager, Playlist } from '../services/playlistManager';
+import { audioService } from '../services/audioService';
 import { Track } from '../types';
 
 interface AddToPlaylistModalProps {
@@ -31,6 +32,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [playback, setPlayback] = useState(audioService.getState());
 
   const isMultiTracks = Array.isArray(tracks) && tracks.length > 0;
   const targetTracks: Track[] = isMultiTracks ? tracks : track ? [track] : [];
@@ -41,6 +43,10 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   };
 
   useEffect(() => {
+    return audioService.subscribe(setPlayback);
+  }, []);
+
+  useEffect(() => {
     if (visible) {
       loadPlaylists();
       setIsCreating(false);
@@ -49,6 +55,23 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   }, [visible]);
 
   if (targetTracks.length === 0) return null;
+
+  const handleAddToCurrentQueue = async () => {
+    if (isMultiTracks) {
+      await audioService.addTracksToQueue(targetTracks);
+      Alert.alert(
+        'Álbum Incluído na Fila',
+        `${targetTracks.length} faixas do álbum foram adicionadas à playlist que está tocando agora!`
+      );
+    } else if (track) {
+      await audioService.addTrackToQueue(track);
+      Alert.alert(
+        'Música Incluída',
+        `"${track.title}" foi adicionada à playlist que está tocando agora!`
+      );
+    }
+    onClose();
+  };
 
   const handleAddToPlaylist = async (playlist: Playlist) => {
     if (isMultiTracks) {
@@ -113,6 +136,31 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
               <Ionicons name="close" size={24} color="#A0A0B0" />
             </TouchableOpacity>
           </View>
+
+          {!isCreating && Boolean(playback.currentTrack || playback.queue.length > 0) && (
+            <TouchableOpacity
+              style={styles.currentQueueCard}
+              onPress={handleAddToCurrentQueue}
+              activeOpacity={0.75}
+            >
+              <View style={styles.currentQueueIconBox}>
+                <Ionicons name="play-circle" size={20} color="#08080A" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.currentQueueTitle}>Playlist / Fila Tocando Agora</Text>
+                  <View style={styles.nowPlayingBadge}>
+                    <Text style={styles.nowPlayingBadgeText}>TOCANDO</Text>
+                  </View>
+                </View>
+                <Text style={styles.currentQueueSubtitle} numberOfLines={1}>
+                  {playback.currentPlaylistName ? `"${playback.currentPlaylistName}" • ` : ''}
+                  {playback.queue.length} {playback.queue.length === 1 ? 'música na fila' : 'músicas na fila'}
+                </Text>
+              </View>
+              <Ionicons name="add-circle" size={24} color="#00E5FF" />
+            </TouchableOpacity>
+          )}
 
           {isCreating ? (
             <View style={styles.createBox}>
@@ -317,4 +365,46 @@ const styles = StyleSheet.create({
     color: '#707078',
     fontSize: 13,
   },
+  currentQueueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    borderColor: 'rgba(0, 229, 255, 0.4)',
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+  },
+  currentQueueIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00E5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentQueueTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  currentQueueSubtitle: {
+    color: '#00E5FF',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  nowPlayingBadge: {
+    backgroundColor: '#00E5FF',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  nowPlayingBadgeText: {
+    color: '#08080A',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 });
+

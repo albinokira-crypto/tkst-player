@@ -152,7 +152,62 @@ export const PlaylistsScreen = () => {
 
   const handlePlayPlaylistAll = (startIndex = 0) => {
     if (!selectedPlaylist || selectedPlaylist.tracks.length === 0) return;
-    audioService.setQueue(selectedPlaylist.tracks, startIndex);
+    audioService.setQueue(selectedPlaylist.tracks, startIndex, {
+      id: selectedPlaylist.id,
+      name: selectedPlaylist.name,
+    });
+  };
+
+  const handleMoveTrackUp = async (index: number) => {
+    if (!selectedPlaylist || index <= 0) return;
+    await PlaylistManager.reorderTracks(selectedPlaylist.id, index, index - 1);
+    await loadData();
+    if (playback.currentPlaylistId === selectedPlaylist.id) {
+      audioService.moveTrackInQueue(index, index - 1);
+    }
+  };
+
+  const handleMoveTrackDown = async (index: number) => {
+    if (!selectedPlaylist || index >= selectedPlaylist.tracks.length - 1) return;
+    await PlaylistManager.reorderTracks(selectedPlaylist.id, index, index + 1);
+    await loadData();
+    if (playback.currentPlaylistId === selectedPlaylist.id) {
+      audioService.moveTrackInQueue(index, index + 1);
+    }
+  };
+
+  const handlePromptMoveTrack = (index: number, track: Track) => {
+    if (!selectedPlaylist) return;
+    Alert.alert(
+      'Mover Música',
+      `Onde deseja posicionar "${track.title}" na playlist?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Mover para o Topo (1ª)',
+          onPress: async () => {
+            if (index === 0) return;
+            await PlaylistManager.reorderTracks(selectedPlaylist.id, index, 0);
+            await loadData();
+            if (playback.currentPlaylistId === selectedPlaylist.id) {
+              audioService.moveTrackInQueue(index, 0);
+            }
+          },
+        },
+        {
+          text: 'Mover para o Final',
+          onPress: async () => {
+            const target = selectedPlaylist.tracks.length - 1;
+            if (index === target) return;
+            await PlaylistManager.reorderTracks(selectedPlaylist.id, index, target);
+            await loadData();
+            if (playback.currentPlaylistId === selectedPlaylist.id) {
+              audioService.moveTrackInQueue(index, target);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (selectedDownloadedAlbum) {
@@ -381,9 +436,17 @@ export const PlaylistsScreen = () => {
                 const isCurrent = playback.currentTrack?.id === item.id;
                 const isPlaying = isCurrent && playback.isPlaying;
                 const isLoading = isCurrent && playback.isLoading;
+                const isFirst = index === 0;
+                const isLast = index === selectedPlaylist.tracks.length - 1;
 
                 return (
                   <View style={[styles.trackRow, isCurrent && { backgroundColor: 'rgba(0, 229, 255, 0.08)', borderColor: 'rgba(0, 229, 255, 0.25)', borderWidth: 1 }]}>
+                    <View style={styles.trackIndexBadge}>
+                      <Text style={[styles.trackIndexText, isCurrent && { color: '#00E5FF' }]}>
+                        {index + 1}
+                      </Text>
+                    </View>
+
                     <TouchableOpacity
                       style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
                       onPress={() => {
@@ -395,7 +458,7 @@ export const PlaylistsScreen = () => {
                       }}
                     >
                       <Image source={{ uri: item.artworkUrl }} style={styles.artwork} />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={[styles.title, isCurrent && { color: '#00E5FF' }]} numberOfLines={1}>
                           {item.title}
                         </Text>
@@ -406,12 +469,12 @@ export const PlaylistsScreen = () => {
                     </TouchableOpacity>
 
                     {isLoading ? (
-                      <View style={{ paddingHorizontal: 12 }}>
+                      <View style={{ paddingHorizontal: 8 }}>
                         <ActivityIndicator size="small" color="#00E5FF" />
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={{ paddingHorizontal: 8 }}
+                        style={{ paddingHorizontal: 4 }}
                         onPress={() => {
                           if (isCurrent) {
                             audioService.togglePlayPause();
@@ -422,17 +485,45 @@ export const PlaylistsScreen = () => {
                       >
                         <Ionicons
                           name={isPlaying ? 'pause-circle' : isCurrent ? 'play-circle' : 'play-outline'}
-                          size={28}
+                          size={26}
                           color={isCurrent ? '#00E5FF' : '#707078'}
                         />
                       </TouchableOpacity>
                     )}
 
+                    {/* Controles para mover a música de posição na playlist */}
+                    <View style={styles.reorderActions}>
+                      <TouchableOpacity
+                        style={[styles.reorderBtn, isFirst && styles.reorderBtnDisabled]}
+                        onPress={() => handleMoveTrackUp(index)}
+                        disabled={isFirst}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                      >
+                        <Ionicons name="chevron-up" size={17} color={isFirst ? '#3A3A46' : '#00E5FF'} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.reorderBtn, isLast && styles.reorderBtnDisabled]}
+                        onPress={() => handleMoveTrackDown(index)}
+                        disabled={isLast}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                      >
+                        <Ionicons name="chevron-down" size={17} color={isLast ? '#3A3A46' : '#00E5FF'} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.reorderBtn}
+                        onPress={() => handlePromptMoveTrack(index, item)}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                      >
+                        <Ionicons name="reorder-two-outline" size={18} color="#A0A0B0" />
+                      </TouchableOpacity>
+                    </View>
+
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => handleRemoveTrackFromPlaylist(item.id)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Ionicons name="close-circle-outline" size={20} color="#8E8E93" />
+                      <Ionicons name="close-circle-outline" size={19} color="#8E8E93" />
                     </TouchableOpacity>
                   </View>
                 );
@@ -726,10 +817,37 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   deleteButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  trackIndexBadge: {
+    width: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackIndexText: {
+    color: '#707078',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  reorderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 4,
+  },
+  reorderBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#1E1E2C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderBtnDisabled: {
+    opacity: 0.35,
   },
   emptyContainer: {
     alignItems: 'center',

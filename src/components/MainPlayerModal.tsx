@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { audioService } from '../services/audioService';
 import { DownloadManager } from '../services/downloadManager';
 import { AddToPlaylistModal } from './AddToPlaylistModal';
+import { CurrentQueueModal } from './CurrentQueueModal';
 import { TKSTBackground } from './TKSTBackground';
 import { PlaybackState } from '../types';
 
@@ -35,6 +36,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const androidBar = StatusBar.currentHeight || 38;
   const topInset = Platform.OS === 'android'
@@ -51,10 +53,14 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
     });
   }, []);
 
-  // Intercepta botão voltar nativo para fechar o modal do player
+  // Intercepta botão voltar nativo para fechar o modal da fila ou player
   useEffect(() => {
     if (!visible) return;
     const handleBackPress = () => {
+      if (isQueueOpen) {
+        setIsQueueOpen(false);
+        return true;
+      }
       if (isAddToPlaylistOpen) {
         setIsAddToPlaylistOpen(false);
         return true;
@@ -64,7 +70,7 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
     };
     const backSub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
     return () => backSub.remove();
-  }, [visible, isAddToPlaylistOpen, onClose]);
+  }, [visible, isQueueOpen, isAddToPlaylistOpen, onClose]);
 
   if (!playback.currentTrack) return null;
 
@@ -96,7 +102,9 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
       presentationStyle="fullScreen"
       statusBarTranslucent={true}
       onRequestClose={() => {
-        if (isAddToPlaylistOpen) {
+        if (isQueueOpen) {
+          setIsQueueOpen(false);
+        } else if (isAddToPlaylistOpen) {
           setIsAddToPlaylistOpen(false);
         } else {
           onClose();
@@ -115,10 +123,21 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
               <Ionicons name="chevron-down" size={30} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerSubtitle}>TOCANDO AGORA</Text>
+              <Text style={styles.headerSubtitle}>
+                {playback.currentPlaylistName
+                  ? playback.currentPlaylistName.toUpperCase()
+                  : 'TOCANDO AGORA'}
+              </Text>
               <Text style={styles.headerTitle}>TKST PLAYER</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setIsQueueOpen(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="list" size={24} color="#00E5FF" />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => setIsAddToPlaylistOpen(true)}
@@ -248,6 +267,26 @@ export const MainPlayerModal: React.FC<MainPlayerModalProps> = ({ visible, onClo
             </TouchableOpacity>
           </View>
 
+          {/* Atalho elegante para visualizar e reordenar a fila tocando agora */}
+          {playback.queue.length > 0 && (
+            <TouchableOpacity
+              style={styles.queuePillButton}
+              onPress={() => setIsQueueOpen(true)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="swap-vertical" size={15} color="#00E5FF" />
+              <Text style={styles.queuePillText}>
+                Fila de Reprodução ({playback.currentIndex >= 0 ? playback.currentIndex + 1 : 1}/{playback.queue.length}) • Mover ordem
+              </Text>
+              <Ionicons name="chevron-forward" size={15} color="#00E5FF" />
+            </TouchableOpacity>
+          )}
+
+          <CurrentQueueModal
+            visible={isQueueOpen}
+            onClose={() => setIsQueueOpen(false)}
+          />
+
           <AddToPlaylistModal
             visible={isAddToPlaylistOpen}
             track={playback.currentTrack}
@@ -370,4 +409,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 4,
   },
+  queuePillButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(22, 22, 34, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.35)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 8,
+  },
+  queuePillText: {
+    color: '#00E5FF',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
 });
+

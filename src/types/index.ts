@@ -59,5 +59,7 @@ export interface PlaybackState {
   repeatMode: 'off' | 'track' | 'queue';
   queue: Track[];
   currentIndex: number;
+  currentPlaylistId?: string | null;
+  currentPlaylistName?: string | null;
 }
 
